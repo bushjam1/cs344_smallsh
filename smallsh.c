@@ -6,22 +6,27 @@
 #include <string.h> // strtok
 
 int splitWords(char *line, ssize_t line_length){
-  char *line_arr[line_length];
+  // create array of pointers equal to number of tokenized words
+  //char *line_arr[line_length]; /// sizeof *line ];
   int n = 0;
-  //line_arr[0] = &line;
+  //char word[];
+  //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
+ 
   printf("%jd\n",line_length);
 
   char *token = strtok(line, " ");
-  // TODO: check error
-  line_arr[n] = token;
-  printf("token: %p",token); // LEFT OFF HERE - trying to figure spliiting out each word
   while(token) {
-    line_arr[n] = token;
-    token = strtok(NULL, " ");
+    //line_arr[n] = token;
+    //
+    // Duplicate the word 
+    char *word = strdup(token);
+    printf("word: %s\n",word);
+    token = strtok(NULL, " "); // ?? casting appropriately
     n++;
+    printf("n: %d\n",n);
     //printf("token: %p",token);
   }
-  for (int i = 0; i < line_length; i++) printf("line_arr[%i] %p\n",i, line_arr[i]);
+  //for (int i = 0; i < line_length; i++) printf("line_arr[%i] %s\n",i, line_arr[1]);
 
   return 0;
 }
