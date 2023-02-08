@@ -44,6 +44,15 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 // 2. WORD SPLITTING  
 int splitwords(char *line, ssize_t line_length){
 
+  // TESTING GSUB
+  //char *lineTest = "subsituting needle";
+  //char const *needle = "needle";
+  //char const *sub = "sub";
+
+  //char *ret = str_gsub(&line, "needle", "sub");
+  //if (!ret) exit(1);
+  //printf("ret: %s", ret);
+
   // create list of pointers to strings
   char *word_arr[line_length];
 
@@ -54,6 +63,8 @@ int splitwords(char *line, ssize_t line_length){
   while(token) {
     word_arr[n] = strdup(token);
     // NOTE: remember to free each call to strdup
+    char *ret = str_gsub(&word_arr[n], "needle", "sub");
+    printf("RET: %s", ret);
     n++;
     token = strtok(NULL, delim);//" "); // ?? casting appropriately
   }
