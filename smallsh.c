@@ -11,16 +11,16 @@ int splitwords(char *line, ssize_t line_length){
   int n = 0;
    //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
 
+  // tokenize line in loop 
   char *token = strtok(line, " ");
   while(token) {
-    //char *word = strdup(token);
     word_arr[n] = strdup(token);
     // NOTE: remember to free each call to strdup
-    token = strtok(NULL, " "); // ?? casting appropriately
     n++;
+    token = strtok(NULL, " "); // ?? casting appropriately
+    //n++;
   }
   for (int i = 0; i < n; i++) {printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); free(word_arr[i]);};
-  //free(*word_arr);
   return 0;
 }
 
@@ -39,9 +39,6 @@ int main(){
 
     /* Get line of input from terminal */
     ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
-    printf("LINE LEN: %lu",line_length);
-
-    /* Check getline() for error */
     if (line_length == -1){
       free(line);
       perror("getline() failed");
@@ -50,7 +47,7 @@ int main(){
 
     /* Do things / write line */ 
     //fwrite(line, nread, 1, stdout);
-    printf("Line: %s\n",line);
+    //printf("Line: %s\n",line);
     splitwords(line, line_length);
     //printf("Line now: %s", line);
     
@@ -64,10 +61,13 @@ int main(){
     //pid_t pid = getpid();
     //pid_t pgid = getpgrp();
     //fprintf(stderr, "PID: %jd PGID: %jd",(intmax_t) pid, (intmax_t) pgid);
-    //if (pid == pgid) printf("Process leader");                                               ;
+    //if (pid == pgid) printf("Process leader");        
+    //free(line);
+    break;
   };
 
   /* Free buffer */
+  printf("THIS IS HAPPENING");
   free(line);
   exit(EXIT_SUCCESS);
 }
