@@ -33,11 +33,8 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   for (; (str = strstr(str, needle));){
     ptrdiff_t off = str - *haystack;
     if (sub_len > needle_len) {
-
       str = realloc(*haystack, sizeof **haystack * (haystack_len + sub_len - needle_len + 1));
-      if (!str){
-        goto exit;
-      }
+      if (!str) goto exit;
       *haystack = str;
       str = *haystack + off;
     }
@@ -48,10 +45,8 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   }
   str = *haystack;
   if (sub_len < needle_len) {
-    str = realloc(*haystack, sizeof ** haystack * (haystack_len + 1));
-    if (!str){
-      goto exit;
-    }
+    str = realloc(*haystack, sizeof **haystack * (haystack_len + 1));
+    if (!str) goto exit;
     *haystack = str;
   } 
   exit:
