@@ -5,39 +5,48 @@
 #include <stdint.h> // intmax_t
 #include <string.h> // strtok
 
+
+
+// 3. EXPANSION 
+// str_gsub should work here 
+//
+
+// 2. WORD SPLITTING  
 int splitwords(char *line, ssize_t line_length){
+
   // create list of pointers to strings
   char *word_arr[line_length];
-  int n = 0;
-   //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
 
   // tokenize line in loop 
-  char *token = strtok(line, " ");
+  int n = 0;
+  char delim[] = " ";// TODO: = {getenv("IFS") || " \t\n"};
+  char *token = strtok(line, delim);//" ");
   while(token) {
     word_arr[n] = strdup(token);
     // NOTE: remember to free each call to strdup
     n++;
-    token = strtok(NULL, " "); // ?? casting appropriately
-    //n++;
+    token = strtok(NULL, delim);//" "); // ?? casting appropriately
   }
+  // Checking line 
   for (int i = 0; i < n; i++) {printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); free(word_arr[i]);};
   return 0;
 }
 
 
-
+// 1. INPUT  
 int main(){
+
   // Main loop
   char *line = NULL;
   size_t n = 0;
-  //ssize_t nread; ??
 
   for (;;) {
-    /* Display shell prompt from PS1*/	
+
+    /* Display prompt from PS1 */	
     const char *env_p = getenv("PS1");  // TODO: error check? 
     fprintf(stderr, "%s",(env_p ? env_p : ""));
 
-    /* Get line of input from terminal */
+    /* Get line of input from stdin */
     ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
     if (line_length == -1){
       free(line);
@@ -45,30 +54,28 @@ int main(){
       exit(EXIT_FAILURE);
     }
 
-    /* Do things / write line */ 
-    //fwrite(line, nread, 1, stdout);
-    //printf("Line: %s\n",line);
+    /* Split words from line */ 
     splitwords(line, line_length);
-    //printf("Line now: %s", line);
     
- 
+    /* Check line after split */ 
     printf("Line after splitting: '");
     for(ssize_t n = 0; n < line_length; ++n)
         line[n] ? putchar(line[n]) : fputs("\\0", stdout);
     puts("'");
 
+    /* TODO: PID / PGID logic */
     // print process if, process group id
     //pid_t pid = getpid();
     //pid_t pgid = getpgrp();
     //fprintf(stderr, "PID: %jd PGID: %jd",(intmax_t) pid, (intmax_t) pgid);
-    //if (pid == pgid) printf("Process leader");        
-    //free(line);
+    //if (pid == pgid) printf("Process leader");       
+
+    free(line);
     break;
   };
 
   /* Free buffer */
-  printf("THIS IS HAPPENING");
-  free(line);
+  //free(line);
   exit(EXIT_SUCCESS);
 }
 
