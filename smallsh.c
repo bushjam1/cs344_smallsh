@@ -5,29 +5,36 @@
 #include <stdint.h> // intmax_t
 #include <string.h> // strtok
 
-int splitWords(char *line, ssize_t line_length){
-  // create array of pointers equal to number of tokenized words
-  //char *line_arr[line_length]; /// sizeof *line ];
+int splitwords(char *line, ssize_t line_length){
+  // create list of pointers to strings
+  char *word_arr[line_length];
+  //for (size_t i = 0; i < sizeof word_arr; i++){word_arr[i] = "a";};
   int n = 0;
-  //char word[];
-  //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
+  printf("%lu",(sizeof word_arr) / (sizeof *word_arr) );
  
-  printf("%jd\n",line_length);
+  //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
 
   char *token = strtok(line, " ");
+  //word_arr[0] = strdup(token);
   while(token) {
-    //line_arr[n] = token;
+    word_arr[n] = strdup(token);
+    // 2d array with 512 words
+    // get len of string
+    // malloc the len of string 
+    // then initialize the ith 
+    // -- 2nd app
+    // 
     //
     // Duplicate the word 
-    char *word = strdup(token);
-    printf("word: %s\n",word);
+    //char *word = strdup(token);
+    //printf("word: %p\n",word);
     token = strtok(NULL, " "); // ?? casting appropriately
     n++;
-    printf("n: %d\n",n);
+    //printf("n: %d\n",n);
     //printf("token: %p",token);
   }
-  //for (int i = 0; i < line_length; i++) printf("line_arr[%i] %s\n",i, line_arr[1]);
-
+  for (int i = 0; i < n; i++) printf("line_arr[%i] %p val: %s\n",i, word_arr[i], word_arr[i]);
+  //printf("%s",word_arr[1]);
   return 0;
 }
 
@@ -46,6 +53,7 @@ int main(){
 
     /* Get line of input from terminal */
     ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
+    printf("LINE LEN: %lu",line_length);
 
     /* Check getline() for error */
     if (line_length == -1){
@@ -57,7 +65,7 @@ int main(){
     /* Do things / write line */ 
     //fwrite(line, nread, 1, stdout);
     printf("Line: %s\n",line);
-    splitWords(line, line_length);
+    splitwords(line, line_length);
     //printf("Line now: %s", line);
     
  
