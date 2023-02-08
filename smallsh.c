@@ -8,33 +8,19 @@
 int splitwords(char *line, ssize_t line_length){
   // create list of pointers to strings
   char *word_arr[line_length];
-  //for (size_t i = 0; i < sizeof word_arr; i++){word_arr[i] = "a";};
   int n = 0;
-  printf("%lu",(sizeof word_arr) / (sizeof *word_arr) );
- 
-  //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
+   //char s[] = {"**"};//{getenv("IFS") || " \t\n"};
 
   char *token = strtok(line, " ");
-  //word_arr[0] = strdup(token);
   while(token) {
-    word_arr[n] = strdup(token);
-    // 2d array with 512 words
-    // get len of string
-    // malloc the len of string 
-    // then initialize the ith 
-    // -- 2nd app
-    // 
-    //
-    // Duplicate the word 
     //char *word = strdup(token);
-    //printf("word: %p\n",word);
+    word_arr[n] = strdup(token);
+    // NOTE: remember to free each call to strdup
     token = strtok(NULL, " "); // ?? casting appropriately
     n++;
-    //printf("n: %d\n",n);
-    //printf("token: %p",token);
   }
-  for (int i = 0; i < n; i++) printf("line_arr[%i] %p val: %s\n",i, word_arr[i], word_arr[i]);
-  //printf("%s",word_arr[1]);
+  for (int i = 0; i < n; i++) {printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); free(word_arr[i]);};
+  //free(*word_arr);
   return 0;
 }
 
