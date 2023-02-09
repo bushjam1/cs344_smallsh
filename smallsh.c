@@ -10,13 +10,11 @@
 
 // 3. EXPANSION 
 // str_gsub should work here
-
-
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
   size_t haystack_len = strlen(str);
   size_t const needle_len = strlen(needle),
-	 sub_len = strlen(sub);
+	sub_len = strlen(sub);
 
   for (; (str = strstr(str, needle));){
     ptrdiff_t off = str - *haystack;
@@ -41,30 +39,38 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
+
 // 2. WORD SPLITTING  
 int splitwords(char *line, ssize_t line_length){
 
-  // TESTING GSUB
-  //char *lineTest = "subsituting needle";
-  //char const *needle = "needle";
-  //char const *sub = "sub";
-
-  //char *ret = str_gsub(&line, "needle", "sub");
-  //if (!ret) exit(1);
-  //printf("ret: %s", ret);
-
   // create list of pointers to strings
   char *word_arr[line_length];
-
-  // tokenize line in loop 
   int n = 0;
+
+  // declare homeStr for later expansion
+  char *homeStr = getenv("HOME");
+  strcat(homeStr, "/"); 
+  
+  // tokenize line in loop, expand words 
   char delim[] = " ";// TODO: = {getenv("IFS") || " \t\n"};
-  char *token = strtok(line, delim);//" ");
+  char *token = strtok(line, delim);
   while(token) {
-    word_arr[n] = strdup(token);
-    // NOTE: remember to free each call to strdup
-    char *ret = str_gsub(&word_arr[n], "needle", "sub");
-    printf("RET: %s", ret);
+    word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
+    
+    // 3. EXPANSION 
+    // "~/" -> $HOME
+    str_gsub(&word_arr[n], "~/", homeStr);
+    // "$$" -> pid 
+    pid_t pid = getpid();
+    char pidStr[12]; // TODO: good size? 
+    sprintf(pidStr, "%d", pid);
+    str_gsub(&word_arr[n], "$$", pidStr);
+    // "$?" -> exit status last fg command 
+    //char *ret = str_gsub(&word_arr[n], "$?",);
+    // "$!" -> pid of most recent bg process
+    //char *ret = str_gsub(&word_arr[n], "$!",);
+                                                                          
+    //printf("RET: %s", ret);
     n++;
     token = strtok(NULL, delim);//" "); // ?? casting appropriately
   }
