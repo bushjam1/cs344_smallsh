@@ -9,7 +9,6 @@
 
 
 // 3. EXPANSION 
-// str_gsub should work here
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
   size_t haystack_len = strlen(str);
@@ -44,7 +43,7 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 int splitwords(char *line, ssize_t line_length){
 
   // create list of pointers to strings
-  char *word_arr[line_length];
+  char *word_arr[line_length]; // 512??
   int n = 0;
 
   // declare homeStr for later expansion
@@ -58,17 +57,26 @@ int splitwords(char *line, ssize_t line_length){
     word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
     
     // 3. EXPANSION 
+    
     // "~/" -> $HOME
-    str_gsub(&word_arr[n], "~/", homeStr);
+    str_gsub(&word_arr[n], "~/", homeStr); // was char ret = str_gsub...
+    
     // "$$" -> pid 
-    pid_t pid = getpid();
     char pidStr[12]; // TODO: good size? 
-    sprintf(pidStr, "%d", pid);
+    sprintf(pidStr, "%d", getpid());
     str_gsub(&word_arr[n], "$$", pidStr);
+    
     // "$?" -> exit status last fg command 
-    //char *ret = str_gsub(&word_arr[n], "$?",);
+    // shall default to 0 (“0”) 
+    char fgExitStatus[12]; // TODO good size?
+    sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
+    str_gsub(&word_arr[n], "$?", fgExitStatus);
+    
     // "$!" -> pid of most recent bg process
-    //char *ret = str_gsub(&word_arr[n], "$!",);
+    // shall default to an empty string (““) if no background process ID is available
+    char pidRecentBgProc[12]; // TODO good size?
+    sprintf(pidRecentBgProc, "%d", 1111); 
+    str_gsub(&word_arr[n], "$!", pidRecentBgProc); 
                                                                           
     //printf("RET: %s", ret);
     n++;
