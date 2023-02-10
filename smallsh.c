@@ -8,17 +8,19 @@
 
 
 
-// 3. EXPANSION 
+// string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
   size_t haystack_len = strlen(str);
   size_t const needle_len = strlen(needle),
 	sub_len = strlen(sub);
-
-  for (; (str = strstr(str, needle));){
+  int homeEx = strncmp(*haystack, "~/", 2); // HOME EXP
+  for (int i = 0; (str = strstr(str, needle)); i++){ // HOME EXP: i, i++
     ptrdiff_t off = str - *haystack;
     if (sub_len > needle_len) {
       str = realloc(*haystack, sizeof **haystack * (haystack_len + sub_len - needle_len + 1));
+      if (homeEx == 0 && i == 1) { // HOME EXP
+        goto exit;}; // HOME EXP
       if (!str) goto exit;
       *haystack = str;
       str = *haystack + off;
@@ -56,10 +58,13 @@ int splitwords(char *line, ssize_t line_length){
   while(token) {
     word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
     
-    // 3. EXPANSION 
+
+    // 3. EXPANSION - TODO? move to str_gsub/
     
     // "~/" -> $HOME
-    str_gsub(&word_arr[n], "~/", homeStr); // was char ret = str_gsub...
+    if (strncmp(word_arr[n], "~/", 2) == 0){
+      str_gsub(&word_arr[n], "~/", homeStr);
+    };
     
     // "$$" -> pid 
     char pidStr[12]; // TODO: good size? 
