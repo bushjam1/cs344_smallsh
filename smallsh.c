@@ -41,6 +41,37 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 
+
+int expandword(char *restrict *restrict word){
+
+  // home exp 
+  char *homeStr = getenv("HOME");
+  if (strncmp(*word, "~/", 2) == 0){
+    str_gsub(word, "~", homeStr);
+  };
+
+  // "$$" -> pid 
+  char pidStr[12]; // TODO: good size? 
+  sprintf(pidStr, "%d", getpid());
+  str_gsub(word, "$$", pidStr);
+    
+  // "$?" -> exit status last fg command 
+  // shall default to 0 (“0”) 
+  char fgExitStatus[12]; // TODO good size?
+  sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
+  str_gsub(word, "$?", fgExitStatus);
+    
+  // "$!" -> pid of most recent bg process
+  // shall default to an empty string (““) if no background process ID is available
+  char pidRecentBgProc[12]; // TODO good size?
+  sprintf(pidRecentBgProc, "%d", 1111); 
+  str_gsub(word, "$!", pidRecentBgProc); 
+ 
+  return 0;
+
+}
+
+
 // 2. WORD SPLITTING  
 int splitwords(char *line, ssize_t line_length){
 
@@ -49,8 +80,8 @@ int splitwords(char *line, ssize_t line_length){
   int n = 0;
 
   // declare homeStr for later expansion
-  char *homeStr = getenv("HOME");
-  strcat(homeStr, "/"); 
+  //char *homeStr = getenv("HOME");
+  //strcat(homeStr, "/"); 
   
   // tokenize line in loop, expand words 
   char delim[] = " ";// TODO: = {getenv("IFS") || " \t\n"};
@@ -62,26 +93,27 @@ int splitwords(char *line, ssize_t line_length){
     // 3. EXPANSION - TODO? move to str_gsub/
     
     // "~/" -> $HOME
-    if (strncmp(word_arr[n], "~/", 2) == 0){
-      str_gsub(&word_arr[n], "~/", homeStr);
-    };
+    //if (strncmp(word_arr[n], "~/", 2) == 0){
+    //  str_gsub(&word_arr[n], "~", homeStr);
+    //};
+    expandword(&word_arr[n]); 
     
     // "$$" -> pid 
-    char pidStr[12]; // TODO: good size? 
-    sprintf(pidStr, "%d", getpid());
-    str_gsub(&word_arr[n], "$$", pidStr);
+    //char pidStr[12]; // TODO: good size? 
+    //sprintf(pidStr, "%d", getpid());
+    //str_gsub(&word_arr[n], "$$", pidStr);
     
     // "$?" -> exit status last fg command 
     // shall default to 0 (“0”) 
-    char fgExitStatus[12]; // TODO good size?
-    sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
-    str_gsub(&word_arr[n], "$?", fgExitStatus);
+    //char fgExitStatus[12]; // TODO good size?
+    //sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
+    //str_gsub(&word_arr[n], "$?", fgExitStatus);
     
     // "$!" -> pid of most recent bg process
     // shall default to an empty string (““) if no background process ID is available
-    char pidRecentBgProc[12]; // TODO good size?
-    sprintf(pidRecentBgProc, "%d", 1111); 
-    str_gsub(&word_arr[n], "$!", pidRecentBgProc); 
+    //char pidRecentBgProc[12]; // TODO good size?
+    //sprintf(pidRecentBgProc, "%d", 1111); 
+    //str_gsub(&word_arr[n], "$!", pidRecentBgProc); 
                                                                           
     //printf("RET: %s", ret);
     n++;
@@ -129,13 +161,15 @@ int main(){
     //pid_t pgid = getpgrp();
     //fprintf(stderr, "PID: %jd PGID: %jd",(intmax_t) pid, (intmax_t) pgid);
     //if (pid == pgid) printf("Process leader");       
-
-    free(line);
-    break;
+    //printf("FREE WILL BE CALLED 133\n");
+    //free(line);
+    //break;
   };
 
   /* Free buffer */
-  //free(line);
+  // 230210 - still has one block unfreed at end
+  // I think that the quit needs to free before exiting
+  free(line);
   exit(EXIT_SUCCESS);
 }
 
