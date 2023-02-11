@@ -45,10 +45,15 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 int expandword(char *restrict *restrict word){
 
   // home exp 
+  // 230210 LEFT OFF / TODO this needs to be fixed to only expand leading
+  // working on doing it with no call to gsub
   char *homeStr = getenv("HOME");
-  if (strncmp(*word, "~/", 2) == 0){
-    str_gsub(word, "~", homeStr);
+  if (strncmp(*word, "~", 1) == 0){
+    //char *homeStr = realloc(&homeStr, sizeof word + sizeof homeStr);
+    strcat(homeStr, *word);
+    //str_gsub(word, "~", homeStr);
   };
+  printf("NEW:%s\n",homeStr);
 
   // "$$" -> pid 
   char pidStr[12]; // TODO: good size? 
@@ -92,30 +97,7 @@ int splitwords(char *line, ssize_t line_length){
 
     expandword(&word_arr[n]); 
     // 3. EXPANSION - TODO? move to str_gsub/
-    
-    // "~/" -> $HOME
-    //if (strncmp(word_arr[n], "~/", 2) == 0){
-    //  str_gsub(&word_arr[n], "~/", homeStr);
-    //};
-    
-    // "$$" -> pid 
-    //char pidStr[12]; // TODO: good size? 
-    //sprintf(pidStr, "%d", getpid());
-    //str_gsub(&word_arr[n], "$$", pidStr);
-    
-    // "$?" -> exit status last fg command 
-    // shall default to 0 (“0”) 
-    //char fgExitStatus[12]; // TODO good size?
-    //sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
-    //str_gsub(&word_arr[n], "$?", fgExitStatus);
-    
-    // "$!" -> pid of most recent bg process
-    // shall default to an empty string (““) if no background process ID is available
-    //char pidRecentBgProc[12]; // TODO good size?
-    //sprintf(pidRecentBgProc, "%d", 1111); 
-    //str_gsub(&word_arr[n], "$!", pidRecentBgProc); 
-                                                                          
-    //printf("RET: %s", ret);
+
     n++;
     token = strtok(NULL, delim);//" "); // ?? casting appropriately
   }
