@@ -7,6 +7,14 @@
 #include <stddef.h> // ptrdiff_t str_gsub 
 
 
+/* NOTES:
+* Call exec() on: 
+* Call fork() on non-built ins:
+* https://discord.com/channels/1061573748496547911/1061579120317837342/1073601319874601072
+* https://discord.com/channels/1061573748496547911/1061579120317837342/1072019376036909066:w
+*
+*/
+
 
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
@@ -14,13 +22,10 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   size_t haystack_len = strlen(str);
   size_t const needle_len = strlen(needle),
 	sub_len = strlen(sub);
-  //int homeEx = strncmp(*haystack, "~/", 2); // HOME EXP
-  for (int i = 0; (str = strstr(str, needle)); i++){ // HOME EXP: i, i++
+  for (; (str = strstr(str, needle)); ){ // HOME EXP: i, i++
     ptrdiff_t off = str - *haystack;
     if (sub_len > needle_len) {
       str = realloc(*haystack, sizeof **haystack * (haystack_len + sub_len - needle_len + 1));
-      //if (homeEx == 0 && i == 1) { // HOME EXP
-      //  goto exit;}; // HOME EXP
       if (!str) goto exit;
       *haystack = str;
       str = *haystack + off;
@@ -28,7 +33,8 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     memmove(str + sub_len, str + needle_len, haystack_len + 1 - off - needle_len);
     memcpy(str, sub, sub_len);
     haystack_len = haystack_len + sub_len - needle_len;
-    str += sub_len; 
+    str += sub_len;
+    if(strcmp(needle, "~") == 0) {break;}; // ADDED HOME EXP
   }
   str = *haystack;
   if (sub_len < needle_len) {
@@ -41,19 +47,14 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 
+// 3. EXPANSION 
+int expand_word(char *restrict *restrict word){
 
-int expandword(char *restrict *restrict word){
-
-  // home exp 
-  // 230210 LEFT OFF / TODO this needs to be fixed to only expand leading
-  // working on doing it with no call to gsub
+  // "~" -> home 
   char *homeStr = getenv("HOME");
-  if (strncmp(*word, "~", 1) == 0){
-    //char *homeStr = realloc(&homeStr, sizeof word + sizeof homeStr);
-    strcat(homeStr, *word);
-    //str_gsub(word, "~", homeStr);
+  if (strncmp(*word, "~/", 2) == 0){
+    str_gsub(word, "~", homeStr);
   };
-  printf("NEW:%s\n",homeStr);
 
   // "$$" -> pid 
   char pidStr[12]; // TODO: good size? 
@@ -78,28 +79,23 @@ int expandword(char *restrict *restrict word){
 
 
 // 2. WORD SPLITTING  
-int splitwords(char *line, ssize_t line_length){
+int split_words(char *line, ssize_t line_length){
 
   // create list of pointers to strings
   char *word_arr[line_length]; // 512??
   int n = 0;
 
-  // declare homeStr for later expansion
-  //char *homeStr = getenv("HOME");
-  //strcat(homeStr, "/"); 
-  
   // tokenize line in loop, expand words 
   char delim[] = " ";// TODO: = {getenv("IFS") || " \t\n"};
   char *token = strtok(line, delim);
   while(token) {
     word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
     
-
-    expandword(&word_arr[n]); 
-    // 3. EXPANSION - TODO? move to str_gsub/
+    // expand word, as applicable 
+    expand_word(&word_arr[n]); 
 
     n++;
-    token = strtok(NULL, delim);//" "); // ?? casting appropriately
+    token = strtok(NULL, delim);
   }
   // Checking line 
   for (int i = 0; i < n; i++) {printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); free(word_arr[i]);};
@@ -129,7 +125,7 @@ int main(){
     }
 
     /* Split words from line */ 
-    splitwords(line, line_length);
+    split_words(line, line_length);
     
     /* Check line after split */ 
     printf("Line after splitting: '");
