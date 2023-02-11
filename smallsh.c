@@ -14,13 +14,13 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   size_t haystack_len = strlen(str);
   size_t const needle_len = strlen(needle),
 	sub_len = strlen(sub);
-  int homeEx = strncmp(*haystack, "~/", 2); // HOME EXP
+  //int homeEx = strncmp(*haystack, "~/", 2); // HOME EXP
   for (int i = 0; (str = strstr(str, needle)); i++){ // HOME EXP: i, i++
     ptrdiff_t off = str - *haystack;
     if (sub_len > needle_len) {
       str = realloc(*haystack, sizeof **haystack * (haystack_len + sub_len - needle_len + 1));
-      if (homeEx == 0 && i == 1) { // HOME EXP
-        goto exit;}; // HOME EXP
+      //if (homeEx == 0 && i == 1) { // HOME EXP
+      //  goto exit;}; // HOME EXP
       if (!str) goto exit;
       *haystack = str;
       str = *haystack + off;
@@ -90,13 +90,13 @@ int splitwords(char *line, ssize_t line_length){
     word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
     
 
+    expandword(&word_arr[n]); 
     // 3. EXPANSION - TODO? move to str_gsub/
     
     // "~/" -> $HOME
     //if (strncmp(word_arr[n], "~/", 2) == 0){
-    //  str_gsub(&word_arr[n], "~", homeStr);
+    //  str_gsub(&word_arr[n], "~/", homeStr);
     //};
-    expandword(&word_arr[n]); 
     
     // "$$" -> pid 
     //char pidStr[12]; // TODO: good size? 
@@ -155,15 +155,6 @@ int main(){
         line[n] ? putchar(line[n]) : fputs("\\0", stdout);
     puts("'");
 
-    /* TODO: PID / PGID logic */
-    // print process if, process group id
-    //pid_t pid = getpid();
-    //pid_t pgid = getpgrp();
-    //fprintf(stderr, "PID: %jd PGID: %jd",(intmax_t) pid, (intmax_t) pgid);
-    //if (pid == pgid) printf("Process leader");       
-    //printf("FREE WILL BE CALLED 133\n");
-    //free(line);
-    //break;
   };
 
   /* Free buffer */
