@@ -46,6 +46,36 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
+//built-in exit
+//int exit_smallsh(int fg_exit_status){
+//  perror("\nexit\n");} ;
+//  KILL(2)
+//  EXIT(3)
+
+// BUILT-IN CD
+int cd_smallsh(char *homeStr){
+
+  //CHDIR(2)
+  printf("Passed newDirectory: %s\n", homeStr);
+
+  int cwd_buf_size = 200; 
+  char cwd[cwd_buf_size]; // TODO: good size? 
+  char newWd[] = "/nfs/stak/users/bushjam/CS344";
+
+  getcwd(cwd, cwd_buf_size);
+  printf("Current working directory: %s\n", cwd);
+
+  printf("cd to: %s\n", newWd); 
+
+  chdir(newWd);
+  // check error
+  getcwd(cwd, cwd_buf_size);
+  printf("Current working directory after cd: %s\n", cwd);
+    //exit(EXIT_SUCCESS);
+  return 0;
+}
+
+
 
 // 3. EXPANSION 
 int expand_word(char *restrict *restrict word){
@@ -94,6 +124,9 @@ int split_words(char *line, ssize_t line_length){
     // expand word, as applicable 
     expand_word(&word_arr[n]); 
 
+    // execute cd 
+
+
     n++;
     token = strtok(NULL, delim);
   }
@@ -126,6 +159,9 @@ int main(){
 
     /* Split words from line */ 
     split_words(line, line_length);
+
+    printf("Executing CD...\n");
+    cd_smallsh(getenv("HOME")); 
     
     /* Check line after split */ 
     printf("Line after splitting: '");
