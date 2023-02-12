@@ -1,10 +1,12 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> // getpgrp()
+#include <unistd.h> // getpgrp(), chdir(), getcwd()
 #include <stdint.h> // intmax_t
 #include <string.h> // strtok
-#include <stddef.h> // ptrdiff_t str_gsub 
+#include <stddef.h> // ptrdiff_t str_gsub
+#include <errno.h>
+
 
 
 /* NOTES:
@@ -53,24 +55,24 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 //  EXIT(3)
 
 // BUILT-IN CD
-int cd_smallsh(char *homeStr){
+int cd_smallsh(const char *newWd){
+  errno = 0;
 
   //CHDIR(2)
-  printf("Passed newDirectory: %s\n", homeStr);
 
-  int cwd_buf_size = 200; 
-  char cwd[cwd_buf_size]; // TODO: good size? 
-  char newWd[] = "/nfs/stak/users/bushjam/CS344";
-
+  // show cwd
+  int cwd_buf_size = 200; // TODO: good size?
+  char cwd[cwd_buf_size]; // TODO: good size?
   getcwd(cwd, cwd_buf_size);
-  printf("Current working directory: %s\n", cwd);
+  printf("Current working directory (before cd): %s\n", cwd);
 
-  printf("cd to: %s\n", newWd); 
-
-  chdir(newWd);
-  // check error
+  // attempt cd, print error if error 
+  if (chdir(newWd) != 0){
+    perror("chdir() failed %lu \n"); // TODO: Improve this error checking  
+    printf("%i",errno); 
+  };
   getcwd(cwd, cwd_buf_size);
-  printf("Current working directory after cd: %s\n", cwd);
+  printf("Working directory (after cd): %s\n", cwd);
     //exit(EXIT_SUCCESS);
   return 0;
 }
@@ -78,7 +80,7 @@ int cd_smallsh(char *homeStr){
 
 
 // 3. EXPANSION 
-int expand_word(char *restrict *restrict word){
+char *expand_word(char *restrict *restrict word){
 
   // "~" -> home 
   char *homeStr = getenv("HOME");
@@ -103,7 +105,7 @@ int expand_word(char *restrict *restrict word){
   sprintf(pidRecentBgProc, "%d", 1111); 
   str_gsub(word, "$!", pidRecentBgProc); 
  
-  return 0;
+  return *word;
 
 }
 
@@ -116,15 +118,19 @@ int split_words(char *line, ssize_t line_length){
   int n = 0;
 
   // tokenize line in loop, expand words 
-  char delim[] = " ";// TODO: = {getenv("IFS") || " \t\n"};
+  char delim[] = " ";//{getenv("IFS") || " \t\n"};
   char *token = strtok(line, delim);
   while(token) {
-    word_arr[n] = strdup(token); // NOTE: remember to free each call to strdup
+    word_arr[n] = strdup(token);// NOTE: remember to free each call to strdup
+    word_arr[n][strcspn(word_arr[n], "\n")] = 0; // remove newline [1]
     
-    // expand word, as applicable 
-    expand_word(&word_arr[n]); 
+    // expand word, as applicable
+    char *word = expand_word(&word_arr[n]); 
 
-    // execute cd 
+    printf("word_arr[n] after expansion: >%s<\n",word); 
+    
+    // execute cd
+    if (strncmp(word, "~/", 2) == 0 || strncmp(word, "/", 1) == 0) cd_smallsh(word); 
 
 
     n++;
@@ -160,8 +166,8 @@ int main(){
     /* Split words from line */ 
     split_words(line, line_length);
 
-    printf("Executing CD...\n");
-    cd_smallsh(getenv("HOME")); 
+    //printf("Executing CD...\n");
+    //cd_smallsh(getenv("HOME")); 
     
     /* Check line after split */ 
     printf("Line after splitting: '");
@@ -178,3 +184,8 @@ int main(){
   exit(EXIT_SUCCESS);
 }
 
+
+/* SOURCES
+ * [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
+ *
+ */
