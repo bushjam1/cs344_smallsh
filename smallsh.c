@@ -6,6 +6,7 @@
 #include <string.h> // strtok
 #include <stddef.h> // ptrdiff_t str_gsub
 #include <errno.h>
+#include <signal.h> // SIGINT etc
 
 
 
@@ -48,16 +49,8 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
-//built-in exit
-//int exit_smallsh(int fg_exit_status){
-//  perror("\nexit\n");} ;
-//  KILL(2)
-//  EXIT(3)
-
 // BUILT-IN CD
 int cd_smallsh(const char *newWd){
-  errno = 0;
-
   //CHDIR(2)
 
   // show cwd
@@ -66,15 +59,36 @@ int cd_smallsh(const char *newWd){
   getcwd(cwd, cwd_buf_size);
   printf("Current working directory (before cd): %s\n", cwd);
 
-  // attempt cd, print error if error 
+  // attempt cd, print error if error
+  errno = 0; 
   if (chdir(newWd) != 0){
-    perror("chdir() failed %lu \n"); // TODO: Improve this error checking  
+    perror("chdir() failed\n"); // TODO: Improve this error checking?  
     printf("%i",errno); 
+    return -1;
   };
   getcwd(cwd, cwd_buf_size);
   printf("Working directory (after cd): %s\n", cwd);
     //exit(EXIT_SUCCESS);
   return 0;
+}
+
+// BUILT-IN EXIT
+void exit_smallsh(int fg_exit_status){
+  //  KILL(2) - If  pid  equals  0,  then  sig is sent to every process 
+  //  in the process group of the calling process
+  //  All child processes in the same process group 
+  //  shall be sent a SIGINT signal before exiting 
+  //  see p. 405 in LPI for e.g.
+  
+  // print exit to stderr
+  perror("\nexit\n");
+
+  // all child processes sent SIGINT prior to exit (see KILL(2))
+  //  int kill(pid_t pid, int sig); 
+  kill(0, SIGINT);
+
+  //  exit immediately EXIT(3)
+  exit(fg_exit_status); // CORRECT ??
 }
 
 
@@ -129,9 +143,14 @@ int split_words(char *line, ssize_t line_length){
 
     printf("word_arr[n] after expansion: >%s<\n",word); 
     
-    // execute cd
-    if (strncmp(word, "~/", 2) == 0 || strncmp(word, "/", 1) == 0) cd_smallsh(word); 
-
+    // execute cd - *works
+    //if (strncmp(word, "~/", 2) == 0 || strncmp(word, "/", 1) == 0) cd_smallsh(word); 
+    //cd_smallsh(word);
+    
+    // execute exit - *works
+    // default exit code is 
+    //int exit_code = 0; //NOTE/TODO: see expanson of "$?" exit status of last foreground command 
+    if (strcmp(word, "exit") == 0) exit_smallsh(0);
 
     n++;
     token = strtok(NULL, delim);
