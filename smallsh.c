@@ -11,10 +11,7 @@
 #include <sys/wait.h> // wait 
 
 
-
-
 // NOTES:
-
 
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
@@ -91,14 +88,12 @@ void exit_smallsh(int fg_exit_status){
 }
 
 // NON-BUILT-INS
-int non_built_ins(char const *command){
-
-    // execvp(tokenArray[0], tokenArray)
-
+int non_built_ins(char *token_arr[]){
+    
     // printf("Parent pid: %d\n", getpid()); 
-    printf("Command: '%s'", command); 
-    //
-    char *newargv[] = {"top", "", NULL}; // NOW SEND WORDS HERE
+    
+    //char *newargv[] = {"ls", "-al", NULL}; // NOW SEND WORDS HERE
+    char *newargv[] = {token_arr[0], token_arr[1], NULL};
     int childStatus;
 
     // fork a new process 
@@ -113,12 +108,13 @@ int non_built_ins(char const *command){
       // child code will execute this branch
       case 0: 
 		    // In the child process
-		    printf("CHILD(%d) running ls command\n", getpid());
-		    // Replace the current program with "/bin/ls"
+		    printf("CHILD(%d) running command\n", getpid());
+        // execvp(tokenArray[0], tokenArray)
+        // execvp searches the PATH for the env variable with argument 1
 		    execvp(newargv[0], newargv);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-		    exit(2);
+		    exit(2); // TODO error good? 
 		    break;
       default: 
         // In parent process. 
@@ -189,7 +185,7 @@ int split_words(char *line, ssize_t line_length){
     // expand word, as applicable
     char *word = expand_word(&word_arr[n]); 
 
-    printf("word_arr[n] after expansion: >%s<\n",word); 
+    //printf("word_arr[n] after expansion: >%s<\n",word); 
 
     //BUILT-INS
     
@@ -203,15 +199,19 @@ int split_words(char *line, ssize_t line_length){
     //if (strcmp(word, "exit") == 0) exit_smallsh(0);
     
     // NON-BUILT-INS
-    //non_built_ins("cd command");
+    //non_built_ins(word);
 
-    non_built_ins("running ls from main...");
 
     n++;
     token = strtok(NULL, delim);
   }
+  // TODO need null termination at end of word_arr??? 
+  // https://discord.com/channels/1061573748496547911/1061579120317837342/1074827823832907776
   // Checking line 
-  for (int i = 0; i < n; i++) {printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); free(word_arr[i]);};
+  non_built_ins(word_arr); // LEFT OFF HERE WITH EXPERIMENT
+  for (int i = 0; i < n; i++) {
+    printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); 
+    free(word_arr[i]);};
   return 0;
 }
 
