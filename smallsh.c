@@ -10,13 +10,7 @@
 
 
 
-/* NOTES:
-* Call exec() on: 
-* Call fork() on non-built ins:
-* https://discord.com/channels/1061573748496547911/1061579120317837342/1073601319874601072
-* https://discord.com/channels/1061573748496547911/1061579120317837342/1072019376036909066:w
-*
-*/
+// NOTES:
 
 
 // string substitution 
@@ -25,7 +19,7 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   size_t haystack_len = strlen(str);
   size_t const needle_len = strlen(needle),
 	sub_len = strlen(sub);
-  for (; (str = strstr(str, needle)); ){ // HOME EXP: i, i++
+  for (; (str = strstr(str, needle)); ){
     ptrdiff_t off = str - *haystack;
     if (sub_len > needle_len) {
       str = realloc(*haystack, sizeof **haystack * (haystack_len + sub_len - needle_len + 1));
@@ -37,7 +31,7 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     memcpy(str, sub, sub_len);
     haystack_len = haystack_len + sub_len - needle_len;
     str += sub_len;
-    if(strcmp(needle, "~") == 0) {break;}; // ADDED HOME EXP
+    if(strcmp(needle, "~") == 0) {break;}; // ADDED FOR HOME EXP
   }
   str = *haystack;
   if (sub_len < needle_len) {
@@ -51,8 +45,7 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 
 // BUILT-IN CD
 int cd_smallsh(const char *newWd){
-  //CHDIR(2)
-
+  // CHDIR(2)
   // show cwd
   int cwd_buf_size = 200; // TODO: good size?
   char cwd[cwd_buf_size]; // TODO: good size?
@@ -68,12 +61,13 @@ int cd_smallsh(const char *newWd){
   };
   getcwd(cwd, cwd_buf_size);
   printf("Working directory (after cd): %s\n", cwd);
-    //exit(EXIT_SUCCESS);
+
   return 0;
 }
 
 // BUILT-IN EXIT
 void exit_smallsh(int fg_exit_status){
+  //  NOTES: 
   //  KILL(2) - If  pid  equals  0,  then  sig is sent to every process 
   //  in the process group of the calling process
   //  All child processes in the same process group 
@@ -84,37 +78,51 @@ void exit_smallsh(int fg_exit_status){
   perror("\nexit\n");
 
   // all child processes sent SIGINT prior to exit (see KILL(2))
-  //  int kill(pid_t pid, int sig); 
+  // int kill(pid_t pid, int sig); 
   kill(0, SIGINT);
 
   //  exit immediately EXIT(3)
   exit(fg_exit_status); // CORRECT ??
 }
 
+// NON-BUILT-INS
+int non_built_ins(char const *command){
+
+    pid_t childPid;
+    switch(childPid = fork()){
+      case -1:
+        // handle errlr
+      case 0: 
+        // perform action specific to child 
+      default: 
+        // perform action specific to parent 
+
+  return 0;
+}
 
 
 // 3. EXPANSION 
 char *expand_word(char *restrict *restrict word){
 
-  // "~" -> home
 
-  char *homeStr = getenv("HOME"); // does ret NULL if not found. TODO: error?
-  if (!homeStr) homeStr = "";
+  // "~" -> home
   if (strncmp(*word, "~/", 2) == 0){
+    char *homeStr = getenv("HOME"); // does ret NULL if not found. TODO: error?
+    if (!homeStr) homeStr = "";
     str_gsub(word, "~", homeStr);
-  };
+  }
 
   // "$$" -> pid 
-  char pidStr[12]; // TODO: good size?
-  
+  char pidStr[12]; // TODO: good size? 
   sprintf(pidStr, "%d", getpid()); // guaranteed return
   str_gsub(word, "$$", pidStr);
     
   // "$?" -> exit status last fg command 
   // shall default to 0 (“0”) 
-  char fgExitStatus[12]; // TODO good size?
-  sprintf(fgExitStatus, "%d", 0); // TODO: need fg exit status 
-  str_gsub(word, "$?", fgExitStatus);
+  int fgExitStatus = 0;  // TODO: need fg exit status 
+  char fgExitStatusStr[12];
+  sprintf(fgExitStatusStr, "%d", fgExitStatus); 
+  str_gsub(word, "$?", fgExitStatusStr);
     
   // "$!" -> pid of most recent bg process
   // shall default to an empty string (““) if no background process ID is available
@@ -145,6 +153,8 @@ int split_words(char *line, ssize_t line_length){
     char *word = expand_word(&word_arr[n]); 
 
     printf("word_arr[n] after expansion: >%s<\n",word); 
+
+    //BUILT-INS
     
     // execute cd - *works
     //if (strncmp(word, "~/", 2) == 0 || strncmp(word, "/", 1) == 0) cd_smallsh(word); 
@@ -153,7 +163,11 @@ int split_words(char *line, ssize_t line_length){
     // execute exit - *works
     // default exit code is 
     //int exit_code = 0; //NOTE/TODO: see expanson of "$?" exit status of last foreground command 
-    if (strcmp(word, "exit") == 0) exit_smallsh(0);
+    //if (strcmp(word, "exit") == 0) exit_smallsh(0);
+    
+    // NON-BUILT-INS
+    
+
 
     n++;
     token = strtok(NULL, delim);
@@ -178,8 +192,8 @@ int main(){
      * If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
      * If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
     */
-    pid_t pid_smallsh = getpid(); 
-    pid_t pid_grp_smallsh = getpgrp(); 
+    //pid_t pid_smallsh = getpid(); 
+    //pid_t pid_grp_smallsh = getpgrp(); 
     
 
     /* Display prompt from PS1 */	
