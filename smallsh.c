@@ -1,12 +1,15 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> // getpgrp(), chdir(), getcwd()
+#include <unistd.h> // getpgrp(), chdir(), getcwd(), fork(), execvp()
 #include <stdint.h> // intmax_t
 #include <string.h> // strtok
 #include <stddef.h> // ptrdiff_t str_gsub
 #include <errno.h>
 #include <signal.h> // SIGINT etc
+#include <sys/types.h> // pid_t
+#include <sys/wait.h> // wait 
+
 
 
 
@@ -68,6 +71,8 @@ int cd_smallsh(const char *newWd){
 // BUILT-IN EXIT
 void exit_smallsh(int fg_exit_status){
   //  NOTES: 
+  //  when process successful exit == 0
+  //  error condition == non-0 
   //  KILL(2) - If  pid  equals  0,  then  sig is sent to every process 
   //  in the process group of the calling process
   //  All child processes in the same process group 
@@ -88,14 +93,46 @@ void exit_smallsh(int fg_exit_status){
 // NON-BUILT-INS
 int non_built_ins(char const *command){
 
-    pid_t childPid;
-    switch(childPid = fork()){
+    // execvp(tokenArray[0], tokenArray)
+
+    // printf("Parent pid: %d\n", getpid()); 
+    printf("Command: '%s'", command); 
+    //
+    char *newargv[] = {"top", "", NULL}; // NOW SEND WORDS HERE
+    int childStatus;
+
+    // fork a new process 
+    pid_t childPid = fork(); 
+    // If fork successful, value of spawnPid will be 0 in child, childs pid in parent 
+    switch(childPid){
+      // error
       case -1:
-        // handle errlr
+        perror("fork() failed"); // TODO error good?
+        exit(1);
+        break;
+      // child code will execute this branch
       case 0: 
-        // perform action specific to child 
+		    // In the child process
+		    printf("CHILD(%d) running ls command\n", getpid());
+		    // Replace the current program with "/bin/ls"
+		    execvp(newargv[0], newargv);
+		    // exec only returns if there is an error
+		    perror("execvp() failed");
+		    exit(2);
+		    break;
       default: 
-        // perform action specific to parent 
+        // In parent process. 
+        // spawnPid is pid of the child, the parent will execute below 
+        printf(" I am a parent\n"); 
+        childPid = waitpid(childPid, &childStatus, 0); //TODO error?
+        printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
+        if(WIFEXITED(childStatus)){printf("Child %d exited normally with status %d\n", childPid, WEXITSTATUS(childStatus));}
+        else {
+           printf("Child %d exited abnormally due to signal %d\n", childPid, WTERMSIG(childStatus));
+        }
+        // parent waiting done once child exited 
+        break;
+        }; 
 
   return 0;
 }
@@ -166,8 +203,9 @@ int split_words(char *line, ssize_t line_length){
     //if (strcmp(word, "exit") == 0) exit_smallsh(0);
     
     // NON-BUILT-INS
-    
+    //non_built_ins("cd command");
 
+    non_built_ins("running ls from main...");
 
     n++;
     token = strtok(NULL, delim);
