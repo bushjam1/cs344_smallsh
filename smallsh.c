@@ -12,7 +12,9 @@
 
 
 // NOTES:
-
+// consider generic error exit function / incorporate into existing exit_smallsh 
+//   see p. 52 in LPI
+//
 
 
 // string substitution 
@@ -135,15 +137,19 @@ int non_built_ins(char *token_arr[]){
         // WUNTRACED - status of any child specified by pid that are stopped and whose status not reported shall be reported 
         // WNOHANG - waitpid shall not suspend calling thread if status not immediately avail 
         while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) {
-          // check at each iteration if 
+          // check at each iteration if
+          if (childPid == -1){perror("waitpid() failed\n"); exit(1); } // TODO error good? 
+
           // 1) finished - WIFEXITED
-          if(WIFEXITED(childStatus)){printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));}
+          if(WIFEXITED(childStatus)){
+            printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));}
           // 2) stopped - WIFSTOPPED
 
-          if(WIFSTOPPED(childStatus)){printf("Child %jd stopped with status %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));}
+          if(WIFSTOPPED(childStatus)){
+            printf("Child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));}
           // 3) signaled - WIFSIGNALED
           
-          if(WIFSIGNALED(childStatus)){printf("Child %jd signaled with status %d\n", (intmax_t) childPid, WTERMSIG(childStatus));}
+          if(WIFSIGNALED(childStatus)){printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));}
           
           // parent waiting done once child exited 
           // LEFT OFF HERE - 
