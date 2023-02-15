@@ -120,8 +120,11 @@ int non_built_ins(char *token_arr[]){
         // In parent process. 
         // spawnPid is pid of the child, the parent will execute below 
         printf(" I am a parent\n"); 
-        childPid = waitpid(childPid, &childStatus, 0); //TODO error?
+        childPid = waitpid(childPid, &childStatus, 0); //TODO error? 
         printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
+        // REQ: $? shell variable shall set to exit status of waited-for command 
+        // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
+        // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
         if(WIFEXITED(childStatus)){printf("Child %d exited normally with status %d\n", childPid, WEXITSTATUS(childStatus));}
         else {
            printf("Child %d exited abnormally due to signal %d\n", childPid, WTERMSIG(childStatus));
@@ -137,27 +140,26 @@ int non_built_ins(char *token_arr[]){
 // 3. EXPANSION 
 char *expand_word(char *restrict *restrict word){
 
-
-  // "~" -> home
+  // [done-ish] "~" -> home 
   if (strncmp(*word, "~/", 2) == 0){
-    char *homeStr = getenv("HOME"); // does ret NULL if not found. TODO: error?
-    if (!homeStr) homeStr = "";
+    char *homeStr = getenv("HOME"); //TODO: error?
+    if (!homeStr) {homeStr = "";}
     str_gsub(word, "~", homeStr);
   }
 
-  // "$$" -> pid 
-  char pidStr[12]; // TODO: good size? 
+  // [done] "$$" -> pid 
+  char pidStr[12];
   sprintf(pidStr, "%d", getpid()); // guaranteed return
   str_gsub(word, "$$", pidStr);
     
-  // "$?" -> exit status last fg command 
+  // [todo] "$?" -> exit status last fg command 
   // shall default to 0 (“0”) 
   int fgExitStatus = 0;  // TODO: need fg exit status 
   char fgExitStatusStr[12];
   sprintf(fgExitStatusStr, "%d", fgExitStatus); 
   str_gsub(word, "$?", fgExitStatusStr);
     
-  // "$!" -> pid of most recent bg process
+  // [todo] "$!" -> pid of most recent bg process
   // shall default to an empty string (““) if no background process ID is available
   char pidRecentBgProc[12]; // TODO good size?
   sprintf(pidRecentBgProc, "%d", 1111); 
@@ -167,6 +169,23 @@ char *expand_word(char *restrict *restrict word){
 
 }
 
+// 4. PARSING 
+int parse_words(char *word_arr[], int word_arr_len){
+
+  // execute built-ins
+  // built-in cd // LEFT OFF HERE -- WORKS!
+  if (strcmp(word_arr[0],"cd") == 0){
+    cd_smallsh(word_arr[1]); 
+  }
+  // built-in exit 
+
+  // check / free output 
+  for (int i = 0; i < word_arr_len; i++){
+    //printf("word_arr[%d]: %s\n", i, word_arr[i]); 
+    free(word_arr[i]); 
+  }
+  return 0; 
+}
 
 // 2. WORD SPLITTING  
 int split_words(char *line, ssize_t line_length){
@@ -183,14 +202,12 @@ int split_words(char *line, ssize_t line_length){
     word_arr[n][strcspn(word_arr[n], "\n")] = 0; // remove newline [1]
     
     // expand word, as applicable
-    char *word = expand_word(&word_arr[n]); 
-
-    //printf("word_arr[n] after expansion: >%s<\n",word); 
+    //char *word = expand_word(&word_arr[n]); 
+    expand_word(&word_arr[n]);
 
     //BUILT-INS
     
     // execute cd - *works
-    //if (strncmp(word, "~/", 2) == 0 || strncmp(word, "/", 1) == 0) cd_smallsh(word); 
     //cd_smallsh(word);
     
     // execute exit - *works
@@ -201,17 +218,22 @@ int split_words(char *line, ssize_t line_length){
     // NON-BUILT-INS
     //non_built_ins(word);
 
-
-    n++;
+    // increment and get next token 
+    n++; 
     token = strtok(NULL, delim);
   }
   // TODO need null termination at end of word_arr??? 
   // https://discord.com/channels/1061573748496547911/1061579120317837342/1074827823832907776
+
+
+
   // Checking line 
-  non_built_ins(word_arr); // LEFT OFF HERE WITH EXPERIMENT
-  for (int i = 0; i < n; i++) {
-    printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); 
-    free(word_arr[i]);};
+  //non_built_ins(word_arr); // LEFT OFF HERE WITH EXPERIMENT
+
+  parse_words(word_arr, n); 
+  //for (int i = 0; i < n; i++) {
+  //  printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); 
+  //  free(word_arr[i]);};
   return 0;
 }
 
@@ -246,7 +268,7 @@ int main(){
     if (line_length == -1){
       free(line);
       perror("getline() failed");
-      exit(EXIT_FAILURE);
+      exit(EXIT_FAILURE); // TODO right error? 
     }
 
     /* Split words from line */ 
@@ -256,10 +278,10 @@ int main(){
     //cd_smallsh(getenv("HOME")); 
     
     /* Check line after split */ 
-    printf("Line after splitting: '");
-    for(ssize_t n = 0; n < line_length; ++n)
-        line[n] ? putchar(line[n]) : fputs("\\0", stdout);
-    puts("'");
+    //printf("Line after splitting: '");
+    //for(ssize_t n = 0; n < line_length; ++n)
+    //    line[n] ? putchar(line[n]) : fputs("\\0", stdout);
+    //puts("'");
 
   };
 
