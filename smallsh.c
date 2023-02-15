@@ -13,6 +13,8 @@
 
 // NOTES:
 
+
+
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
@@ -93,46 +95,81 @@ int non_built_ins(char *token_arr[]){
     // printf("Parent pid: %d\n", getpid()); 
     
     //char *newargv[] = {"ls", "-al", NULL}; // NOW SEND WORDS HERE
+    // execvp(tokenArray[0], tokenArray)
     char *newargv[] = {token_arr[0], token_arr[1], NULL};
     int childStatus;
 
-    // fork a new process 
+    // Fork a new process, if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork(); 
-    // If fork successful, value of spawnPid will be 0 in child, childs pid in parent 
+
     switch(childPid){
+
       // error
       case -1:
         perror("fork() failed"); // TODO error good?
         exit(1);
         break;
-      // child code will execute this branch
+
+      // Child process will execute this branch
       case 0: 
-		    // In the child process
-		    printf("CHILD(%d) running command\n", getpid());
-        // execvp(tokenArray[0], tokenArray)
+		    printf("child (%d) running command\n", getpid());
         // execvp searches the PATH for the env variable with argument 1
 		    execvp(newargv[0], newargv);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
 		    exit(2); // TODO error good? 
 		    break;
+
+      // parent process 
       default: 
-        // In parent process. 
-        // spawnPid is pid of the child, the parent will execute below 
-        printf(" I am a parent\n"); 
-        childPid = waitpid(childPid, &childStatus, 0); //TODO error? 
+        // childPid is pid of the child, parent will execute below 
+        // printf(" I am a parent\n"); 
+
+        // from module: childPid = waitpid(childPid, &childStatus, 0); //TODO error?
+
+        // waitpid(3) - pid_t waitpid(pid_t pid, int *stat_loc, int options)
+        //    obtain status of child processes 
+        //    idea of wait is to wait on some termination from child
+        //    
+        // might need signal handler / catcher for child 
+        // WUNTRACED - status of any child specified by pid that are stopped and whose status not reported shall be reported 
+        // WNOHANG - waitpid shall not suspend calling thread if status not immediately avail 
+        while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) {
+          // check at each iteration if 
+          // 1) finished - WIFEXITED
+          if(WIFEXITED(childStatus)){printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));}
+          // 2) stopped - WIFSTOPPED
+
+          if(WIFSTOPPED(childStatus)){printf("Child %jd stopped with status %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));}
+          // 3) signaled - WIFSIGNALED
+          
+          if(WIFSIGNALED(childStatus)){printf("Child %jd signaled with status %d\n", (intmax_t) childPid, WTERMSIG(childStatus));}
+          
+          // parent waiting done once child exited 
+          // LEFT OFF HERE - 
+          // need more info about how to do this loop
+          // still having child output into the stream after return to main
+          // do I need a blocking wait here or what?
+          // background versus foreground?
+          // also list? tracking exit statuses 
+          //break;
+
+
+        }
+
         printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
+        
         // REQ: $? shell variable shall set to exit status of waited-for command 
         // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
         // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
-        if(WIFEXITED(childStatus)){printf("Child %d exited normally with status %d\n", childPid, WEXITSTATUS(childStatus));}
-        else {
-           printf("Child %d exited abnormally due to signal %d\n", childPid, WTERMSIG(childStatus));
-        }
+        //if(WIFEXITED(childStatus)){printf("Child %d exited normally with status %d\n", childPid, WEXITSTATUS(childStatus));}
+        //else {
+        //   printf("Child %d exited abnormally due to signal %d\n", childPid, WTERMSIG(childStatus));
+        //}
         // parent waiting done once child exited 
         break;
         }; 
-
+  printf("THIS HAPPENED\n"); 
   return 0;
 }
 
@@ -175,9 +212,22 @@ int parse_words(char *word_arr[], int word_arr_len){
   // execute built-ins
   // built-in cd // LEFT OFF HERE -- WORKS!
   if (strcmp(word_arr[0],"cd") == 0){
-    cd_smallsh(word_arr[1]); 
+    cd_smallsh(word_arr[1]);
+    return 0;
+  } 
+
+  // built-in exit
+  if (strcmp(word_arr[0], "exit") == 0){
+      exit_smallsh(0);
+      }
+
+  else {
+
+
+  // non-built-ins 
+  non_built_ins(word_arr);
+  return 0;
   }
-  // built-in exit 
 
   // check / free output 
   for (int i = 0; i < word_arr_len; i++){
@@ -262,17 +312,20 @@ int main(){
 
     /* Get line of input from stdin */
     ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
-    if (feof(stdin)){ 
+    if (feof(stdin)){
       exit_smallsh(0); // TODO exit status? Check against base64 rev video. 
     }
+
     if (line_length == -1){
       free(line);
       perror("getline() failed");
+      clearerr(stdin); // TODO: Right? no EOF reset stdin (discussed somewhere + M5 see notes) 
       exit(EXIT_FAILURE); // TODO right error? 
     }
 
     /* Split words from line */ 
     split_words(line, line_length);
+
 
     //printf("Executing CD...\n");
     //cd_smallsh(getenv("HOME")); 
