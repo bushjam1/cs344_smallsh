@@ -114,7 +114,7 @@ int non_built_ins(char *token_arr[]){
 
     switch(childPid){
 
-      // error
+      // Fork error
       case -1:
         perror("fork() failed"); // TODO error good?
         exit(1);
@@ -130,11 +130,10 @@ int non_built_ins(char *token_arr[]){
 		    exit(2); // TODO error good? 
 		    break;
 
-      // parent process 
+      // Parent process 
       default: 
         // childPid is pid of the child, parent will execute below 
         // printf(" I am a parent\n"); 
-
 
         // waitpid(3) - pid_t waitpid(pid_t pid, int *stat_loc, int options)
         //    pid - which child process(es) to wait for: 
@@ -160,44 +159,42 @@ int non_built_ins(char *token_arr[]){
           // 1) finished - WIFEXITED
           if(WIFEXITED(childStatus)){
             printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+            last_fg_exit_status = childStatus; 
           }
+        
           // 2) stopped - WIFSTOPPED
 
           if(WIFSTOPPED(childStatus)){
-            printf("Child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));}
+            printf("Child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
+            // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
+            // TODO ... 
+          }
+        
           // 3) signaled - WIFSIGNALED
           
-          if(WIFSIGNALED(childStatus)){printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));}
+          if(WIFSIGNALED(childStatus)){
+            printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
+            // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
+            last_fg_exit_status = 128 + childStatus; 
+           
+          }  
 
-          // set last_fg_exit_status
-          last_fg_exit_status = childStatus; 
-         
-
-          // LEFT OFF 230215:1455
+        // REQ: $? shell variable shall set to exit status of waited-for command 
+        
+        // LEFT OFF 230215:1937
+          // *need to implement non-blocking wait for &
           // currently blocking wait, parent waiting until child exited 
           // so non-blocking on background (~WUNTRACED | WNOHANG ??)
           //
           // LPI pp. ~548 helpful 
           // also review M4 and search discord for "waitpid" and "blocking" 
           //
-          //break;
-
-
+          //break; ? 
         }
 
-        //printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
-        
-        // REQ: $? shell variable shall set to exit status of waited-for command 
-        // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
-        // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
-        //if(WIFEXITED(childStatus)){printf("Child %d exited normally with status %d\n", childPid, WEXITSTATUS(childStatus));}
-        //else {
-        //   printf("Child %d exited abnormally due to signal %d\n", childPid, WTERMSIG(childStatus));
-        //}
         // parent waiting done once child exited 
         break;
         }; 
-  printf("THIS HAPPENED\n"); 
   return 0;
 }
 
