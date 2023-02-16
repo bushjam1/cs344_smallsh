@@ -16,13 +16,15 @@
 // consider generic error exit function / incorporate into existing exit_smallsh 
 // see p. 52 in LPI
 // use of perror versus fprintf(stderr,..) throughout 
+// REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
+// $? set to a non-zero-value. Further processing of the command line stops and return to step 1 / input. 
  
 // GLOBALS   
 
 // "$?" expansion 
 int last_fg_exit_status = 0;
 // "$!" expansion 
-int last_bg_exit_status = 0; 
+int last_bg_exit_status; // NULL by default 
 
 
 // HELPER FUNCTIONS 
@@ -261,9 +263,11 @@ char *expand_word(char *restrict *restrict word){
     
   // [todo] "$!" -> pid of most recent bg process
   // shall default to an empty string (““) if no background process ID is available
-  char pidRecentBgProc[12]; // TODO good size?
-  sprintf(pidRecentBgProc, "%d", 1111); 
-  str_gsub(word, "$!", pidRecentBgProc); 
+  char last_bg_exit_status_str[12]; // TODO good size?
+  if (last_bg_exit_status) {
+    sprintf(last_bg_exit_status_str, "%d", last_bg_exit_status);
+  }
+  str_gsub(word, "$!", (last_bg_exit_status ? last_bg_exit_status_str : "foxes")); 
  
   return *word;
 
@@ -366,23 +370,29 @@ int main(){
 
   for (;;) {
 
-    /* Check for any un-waited-for background processes in same pid 
-     * group as smallsh and print following message 
-     * If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
-     * If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
+    /* REQ: Check for any un-waited-for background processes in same pid 
+     *      group as smallsh and print following message 
+     *        If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
+     *        If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
+     *        If stopped: smallsh send it SIGCONT and print to stderr :“Child process %d stopped. Continuing.\n”, <pid>"
+     *        e.g., fprintf(stderr, "Child process %jd done. Exit status %d\n", (intmax_t) pid, status); 
     */
     //pid_t pid_smallsh = getpid(); 
     //pid_t pid_grp_smallsh = getpgrp(); 
     
 
     /* Display prompt from PS1 */	
+    // REQ/TODO: If reading interrupted by signal (see sig handling) a newline is printed, then 
+    // a new command prompt shall be printed (including checking for background processes) and 
+    // reading input shall resume. See CLEARERR(3) and reset errno. 
+    //
     const char *env_p = getenv("PS1");  // TODO: error check?
     fprintf(stderr, "%s",(env_p ? env_p : ""));
 
     /* Get line of input from stdin */
     ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
     if (feof(stdin)){
-      exit_smallsh(0); // TODO exit status? Check against base64 rev video. 
+      exit_smallsh(last_fg_exit_status); // [x] REQ: EOF on stdin interpreted as implied `exit $?` 
     }
 
     if (line_length == -1){
