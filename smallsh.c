@@ -8,20 +8,24 @@
 #include <errno.h>
 #include <signal.h> // SIGINT etc
 #include <sys/types.h> // pid_t
-#include <sys/wait.h> // wait 
+#include <sys/wait.h> // wait
+#include <limits.h> // PATH_MAX
 
 
-// NOTES:
+// NOTES/TODO:
 // consider generic error exit function / incorporate into existing exit_smallsh 
-//   see p. 52 in LPI
-//
+// see p. 52 in LPI
+// use of perror versus fprintf(stderr,..) throughout 
+ 
+// GLOBALS   
 
-// globals 
 // "$?" expansion 
-int last_fg_exit_status = 8;
+int last_fg_exit_status = 0;
 // "$!" expansion 
 int last_bg_exit_status = 0; 
 
+
+// HELPER FUNCTIONS 
 
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
@@ -54,28 +58,35 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 
-
 // BUILT-IN CD
+// REQ: The cd built-in takes one argument. If not provided, 
+//      the argument is implied to be the expansion of “~/”, 
+//      the value of the HOME environment variable
+//      If shall be an error if more than one argument is provided.
+//      Smallsh shall change its own current working directory 
+//      to the specified or implied path. It shall be an error if the operation fails.
+
 int cd_smallsh(const char *newWd){
-  // CHDIR(2)
-  // show cwd
-  int cwd_buf_size = 200; // TODO: good size?
-  char cwd[cwd_buf_size]; // TODO: good size?
-  getcwd(cwd, cwd_buf_size);
+  int cwd_size = PATH_MAX; 
+  char cwd[cwd_size]; // TODO: good size?
+  getcwd(cwd, PATH_MAX);
   printf("Current working directory (before cd): %s\n", cwd);
 
-  // attempt cd, print error if error
+  // attempt cd, print error if error - chdir(2)
   errno = 0; 
-  if (chdir(newWd) != 0){
+  if (chdir(newWd) != 0){ 
     perror("chdir() failed\n"); // TODO: Improve this error checking?  
     printf("%i",errno); 
     return -1;
   };
-  getcwd(cwd, cwd_buf_size);
+  // show cwd after cd 
+  getcwd(cwd, cwd_size);
   printf("Working directory (after cd): %s\n", cwd);
 
+  // success return 
   return 0;
 }
+
 
 // BUILT-IN EXIT
 void exit_smallsh(int fg_exit_status){
@@ -89,7 +100,7 @@ void exit_smallsh(int fg_exit_status){
   //  see p. 405 in LPI for e.g.
   
   // print exit to stderr
-  perror("\nexit\n");
+  fprintf(stderr, "\nexit\n");
 
   // all child processes sent SIGINT prior to exit (see KILL(2))
   // int kill(pid_t pid, int sig); 
@@ -99,17 +110,20 @@ void exit_smallsh(int fg_exit_status){
   exit(fg_exit_status); // CORRECT ??
 }
 
+
 // NON-BUILT-INS
 int non_built_ins(char *token_arr[]){
     
     // printf("Parent pid: %d\n", getpid()); 
     
-    //char *newargv[] = {"ls", "-al", NULL}; // NOW SEND WORDS HERE
     // execvp(tokenArray[0], tokenArray)
+    // TODO: sort this token_arr = newargv setup 
     char *newargv[] = {token_arr[0], token_arr[1], NULL};
+
     int childStatus;
 
-    // Fork a new process, if successful value of childPid is 0 in child, child's pid in parent 
+    // Fork a new process, 
+    // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork(); 
 
     switch(childPid){
@@ -130,9 +144,8 @@ int non_built_ins(char *token_arr[]){
 		    exit(2); // TODO error good? 
 		    break;
 
-      // Parent process 
+      // Parent process - childPid is pid of the child, parent will execute below 
       default: 
-        // childPid is pid of the child, parent will execute below 
         // printf(" I am a parent\n"); 
 
         // waitpid(3) - pid_t waitpid(pid_t pid, int *stat_loc, int options)
@@ -148,11 +161,24 @@ int non_built_ins(char *token_arr[]){
         //    obtain status of child processes 
         //    idea of wait is to wait on some termination from child
         //    
-        //   might need signal handler / catcher for child 
-        // WUNTRACED - status of any child specified by pid that are stopped and whose status not reported shall be reported 
-        // WNOHANG - waitpid shall not suspend calling thread if status not immediately avail 
+        // might need signal handler / catcher for child 
+        //
+        // WUNTRACED - status of any child specified by pid that are stopped and 
+        //             whose status not reported shall be reported 
+        //             In addition to returning information about terminated children, also
+        //             return information when a child is stopped by a signal
+        //
+        // WNOHANG   - if no child specified by pid has yet changed state, 
+        //             then return immediately instead of blocking (poll), 
+        //             return value of waitpid() is 0, if calling process has 
+        //             no children that match pid, waitpid() fails with error ECHILD 
+        //             waitpid shall not suspend calling thread if status not immediately avail
+        //
+       
         
-        while ((childPid = waitpid(0, &childStatus, 0)) > 0) { //WUNTRACED | WNOHANG)
+        // REQ: $? shell variable shall set to exit status of waited-for command
+
+        while ((childPid = waitpid(0, &childStatus, 0)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
           // check at each iteration if
           if (childPid == -1){perror("waitpid() failed\n"); exit(1); } // TODO error good? 
 
@@ -179,16 +205,28 @@ int non_built_ins(char *token_arr[]){
            
           }  
 
-        // REQ: $? shell variable shall set to exit status of waited-for command 
         
-        // LEFT OFF 230215:1937
+          // LEFT OFF 230215:1937
           // *need to implement non-blocking wait for &
           // currently blocking wait, parent waiting until child exited 
           // so non-blocking on background (~WUNTRACED | WNOHANG ??)
           //
           // LPI pp. ~548 helpful 
           // also review M4 and search discord for "waitpid" and "blocking" 
-          //
+          
+          //             SIGNAL HANDLING 
+          //             The SIGTSTP signal shall be ignored by smallsh.
+          //             The SIGINT signal shall be ignored (SIG_IGN) at 
+          //             all times except when reading a line of input in Step 1, 
+          //             during which time it shall be registered to a signal handler 
+          //             which does nothing.
+          //             Explanation:
+          //             SIGTSTP (CTRL-Z) normally causes a process to halt, 
+          //             which is undesirable. The smallsh process should not 
+          //             respond to this signal, so it sets its disposition to SIG_IGN.
+          //             The SIGINT (CTRL-C) signal normally causes a process to exit 
+          //             immediately, which is not desired.
+
           //break; ? 
         }
 
@@ -358,14 +396,6 @@ int main(){
     split_words(line, line_length);
 
 
-    //printf("Executing CD...\n");
-    //cd_smallsh(getenv("HOME")); 
-    
-    /* Check line after split */ 
-    //printf("Line after splitting: '");
-    //for(ssize_t n = 0; n < line_length; ++n)
-    //    line[n] ? putchar(line[n]) : fputs("\\0", stdout);
-    //puts("'");
 
   };
 
@@ -380,4 +410,5 @@ int main(){
 /* SOURCES
  * [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
  *
+ * 
  */
