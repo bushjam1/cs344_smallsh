@@ -16,6 +16,12 @@
 //   see p. 52 in LPI
 //
 
+// globals 
+// "$?" expansion 
+int last_fg_exit_status = 8;
+// "$!" expansion 
+int last_bg_exit_status = 0; 
+
 
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
@@ -46,6 +52,8 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   exit:
     return str;
 }
+
+
 
 // BUILT-IN CD
 int cd_smallsh(const char *newWd){
@@ -127,22 +135,32 @@ int non_built_ins(char *token_arr[]){
         // childPid is pid of the child, parent will execute below 
         // printf(" I am a parent\n"); 
 
-        // from module: childPid = waitpid(childPid, &childStatus, 0); //TODO error?
 
         // waitpid(3) - pid_t waitpid(pid_t pid, int *stat_loc, int options)
+        //    pid - which child process(es) to wait for: 
+        //      if pid > 0, wait for that child pid; 
+        //      if pid -1, wait for any child process, similar to wait() 
+        //    stat_loc - 
+        //    options - can include the OR-ed value of 3 constants:
+        //      WUNTRACED 
+        //      WCONTINUED 
+        //      WNOHANG
+        //
         //    obtain status of child processes 
         //    idea of wait is to wait on some termination from child
         //    
-        // might need signal handler / catcher for child 
+        //   might need signal handler / catcher for child 
         // WUNTRACED - status of any child specified by pid that are stopped and whose status not reported shall be reported 
         // WNOHANG - waitpid shall not suspend calling thread if status not immediately avail 
-        while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) {
+        
+        while ((childPid = waitpid(0, &childStatus, 0)) > 0) { //WUNTRACED | WNOHANG)
           // check at each iteration if
           if (childPid == -1){perror("waitpid() failed\n"); exit(1); } // TODO error good? 
 
           // 1) finished - WIFEXITED
           if(WIFEXITED(childStatus)){
-            printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));}
+            printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+          }
           // 2) stopped - WIFSTOPPED
 
           if(WIFSTOPPED(childStatus)){
@@ -150,20 +168,24 @@ int non_built_ins(char *token_arr[]){
           // 3) signaled - WIFSIGNALED
           
           if(WIFSIGNALED(childStatus)){printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));}
-          
-          // parent waiting done once child exited 
-          // LEFT OFF HERE - 
-          // need more info about how to do this loop
-          // still having child output into the stream after return to main
-          // do I need a blocking wait here or what?
-          // background versus foreground?
-          // also list? tracking exit statuses 
+
+          // set last_fg_exit_status
+          last_fg_exit_status = childStatus; 
+         
+
+          // LEFT OFF 230215:1455
+          // currently blocking wait, parent waiting until child exited 
+          // so non-blocking on background (~WUNTRACED | WNOHANG ??)
+          //
+          // LPI pp. ~548 helpful 
+          // also review M4 and search discord for "waitpid" and "blocking" 
+          //
           //break;
 
 
         }
 
-        printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
+        //printf("PARENT(%d): child(%d) terminated. Exiting\n", getpid(), childPid);
         
         // REQ: $? shell variable shall set to exit status of waited-for command 
         // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
@@ -197,10 +219,10 @@ char *expand_word(char *restrict *restrict word){
     
   // [todo] "$?" -> exit status last fg command 
   // shall default to 0 (“0”) 
-  int fgExitStatus = 0;  // TODO: need fg exit status 
-  char fgExitStatusStr[12];
-  sprintf(fgExitStatusStr, "%d", fgExitStatus); 
-  str_gsub(word, "$?", fgExitStatusStr);
+  //int fgExitStatus = 0;  // TODO: need fg exit status 
+  char last_fg_exit_status_str[12];
+  sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); 
+  str_gsub(word, "$?", last_fg_exit_status_str);
     
   // [todo] "$!" -> pid of most recent bg process
   // shall default to an empty string (““) if no background process ID is available
@@ -224,6 +246,12 @@ int parse_words(char *word_arr[], int word_arr_len){
 
   // built-in exit
   if (strcmp(word_arr[0], "exit") == 0){
+      // TODO: The exit built-in takes one argument. If not provided, 
+      // the argument is implied to be the expansion of “$?”, 
+      // the exit status of the last foreground command.
+      // It shall be an error if more than one argument is provided 
+      // or if an argument is provided that is not an integer.
+      // IS IT SOMETHING LIKE word_arr[1] || last_fg_exit_status) 
       exit_smallsh(0);
       }
 
