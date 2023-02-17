@@ -112,7 +112,7 @@ void exit_smallsh(int fg_exit_status){
   kill(0, SIGINT);
 
   //  exit immediately EXIT(3)
-  exit(fg_exit_status); // CORRECT ??
+  exit(fg_exit_status); // LEFT OFF 230217:0807 - CORRECT ?? showing 130 as last exit status - 
 }
 
 
@@ -388,17 +388,19 @@ int parse_words(char *word_arr[], int word_arr_len){
       char *endptr;
       errno = 0; 
       long exit_arg = strtol(word_arr[1], &endptr, 10);
+
       // req: ..or if an argument is provided that is not an integer.
       if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
+        printf("A:\n");
         perror("strtol");
         return 1;
       }
-      if (endptr == word_arr[1]){
+      else if (endptr == word_arr[1]){
+        printf("B:\n"); 
         fprintf(stderr, "No digits were found exit_smallsh()\n"); 
         return 1;
-      exit_smallsh(exit_arg); //LEFT OFF HERE - if int passed but doesn't match it
-                              //runs a child command and execvp() says "No such file or directory"
       }
+      exit_smallsh(exit_arg);
     }
   }
   
