@@ -19,12 +19,15 @@
 // REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
 // $? set to a non-zero-value. Further processing of the command line stops and return to step 1 / input. 
  
-// GLOBALS   
+// PRIOR TO TEST
+// Set the IFS expansion to " \t\n", etc. 
 
-// "$?" expansion 
+
+// GLOBALS   
+// "$?" expansion - req: default to 0 ("0") 
 int last_fg_exit_status = 0;
 // "$!" expansion 
-int most_rec_bg_pid; // NULL by default 
+pid_t most_rec_bg_pid; // NULL by default 
 
 
 // HELPER FUNCTIONS 
@@ -128,7 +131,7 @@ int non_built_ins(char *token_arr[]){
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
 
-    int is_bg_proc = 1; 
+    int is_bg_proc = 0; 
 
     switch(childPid){
 
@@ -140,7 +143,7 @@ int non_built_ins(char *token_arr[]){
 
       // Child process will execute this branch
       case 0: 
-		    printf("child (%d) running command\n", getpid());
+		    printf("child (%jd) running command\n", (intmax_t) getpid());
         // execvp searches the PATH for the env variable with argument 1
 		    execvp(newargv[0], newargv);
 		    // exec only returns if there is an error
@@ -233,7 +236,7 @@ int non_built_ins(char *token_arr[]){
 
             // check at each iteration if
             // print value of waitpid 
-            fprintf(stderr, "waitpid() returned PID=%d childstatus=%d",childPid, childStatus); 
+            fprintf(stderr, "waitpid() returned PID=%jd childstatus=%d", (intmax_t) childPid, childStatus); 
         
             // waitpid() error
             if (childPid == -1){fprintf(stderr,"waitpid() failed\n"); exit(1); } // TODO error good? 
@@ -251,13 +254,11 @@ int non_built_ins(char *token_arr[]){
             if(WIFSIGNALED(childStatus)){
               printf("bg child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
               // anything specific? 
-            }  
-          // LEFT OFF 230215:1937
-          // *need to implement non-blocking wait for &
-          // currently blocking wait, parent waiting until child exited 
-          // so non-blocking on background (~WUNTRACED | WNOHANG ??)
-          // LPI pp. ~548 helpful 
-          // also review M4 and search discord for "waitpid" and "blocking" 
+            } 
+
+          // LEFT OFF 230216:1600
+          // LPI pp. ~548 helpful on waiting 
+          //
           //             SIGNAL HANDLING 
           //             The SIGTSTP signal shall be ignored by smallsh.
           //             The SIGINT signal shall be ignored (SIG_IGN) at 
@@ -270,9 +271,9 @@ int non_built_ins(char *token_arr[]){
           //             respond to this signal, so it sets its disposition to SIG_IGN.
           //             The SIGINT (CTRL-C) signal normally causes a process to exit 
           //             immediately, which is not desired.
-          //break; ? 
+          
         } // while 
-        }
+        } // else 
         // parent waiting done once child exited 
         break;
         } 
@@ -283,44 +284,87 @@ int non_built_ins(char *token_arr[]){
 // 3. EXPANSION 
 char *expand_word(char *restrict *restrict word){
 
-  // [done-ish] "~" -> home 
+  // req: "~" replaced with HOME env var 
   if (strncmp(*word, "~/", 2) == 0){
-    char *homeStr = getenv("HOME"); //TODO: error?
+    char *homeStr = getenv("HOME"); // pointer or null 
     if (!homeStr) {homeStr = "";}
     str_gsub(word, "~", homeStr);
   }
 
-  // [done] "$$" -> pid 
+  // req: "$$" replaced with smallsh pid 
   char pidStr[12];
-  sprintf(pidStr, "%d", getpid()); // guaranteed return
+  pid_t pid = getpid(); // guaranteed  
+  sprintf(pidStr, "%jd", (intmax_t) pid); 
   str_gsub(word, "$$", pidStr);
     
-  // [todo] "$?" -> exit status last fg command 
-  // shall default to 0 (“0”) 
-  //int fgExitStatus = 0;  // TODO: need fg exit status 
+  // req: "$?" replaced with EXIT STATUS last fg command / default to 0 ("0")
   char last_fg_exit_status_str[12];
   sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); 
   str_gsub(word, "$?", last_fg_exit_status_str);
     
-  // [todo] "$!" -> pid of most recent bg process
-  // shall default to an empty string (““) if no background process ID is available
-  char most_rec_bg_pid_str[12]; // TODO good size?
-  if (most_rec_bg_pid) {
-    sprintf(most_rec_bg_pid_str, "%d", most_rec_bg_pid);
-  }
-  str_gsub(word, "$!", (most_rec_bg_pid ? most_rec_bg_pid_str : "foxes")); 
+  // req: "$!" -> PID of most recent bg process; default to empty string (““) if not available
+  char most_rec_bg_pid_str[12];
+  // if there is a most_rec_bg_pid, set the most_rec_bg_pid_str val
+  if (most_rec_bg_pid) {sprintf(most_rec_bg_pid_str, "%jd", (intmax_t) most_rec_bg_pid);}
+  str_gsub(word, "$!", (most_rec_bg_pid ? most_rec_bg_pid_str : "")); // sub "" if no most_rec_bg_pid
  
   return *word;
-
 }
+
 
 // 4. PARSING 
 int parse_words(char *word_arr[], int word_arr_len){
 
+  // NOTE/TODO: array need to be null-terminated?
+  char *infile; 
+  char *outfile;
+  int run_bg; // set to 1 if '&' passed 
+
+  for (int i = 0; i < word_arr_len; i++){
+
+    // 1. fist occurrence of "#" and additional words following are comment 
+    if (strncmp(word_arr[i],"#", 1) == 0){
+      //free(word_arr[i]); 
+      word_arr[i] = NULL;} // repl w/ NULL to ignore rest  
+
+    // 2. if last word is '&' it indicates the command run in bg
+    if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
+      //free(word_arr[i]); 
+      word_arr[i] = NULL; 
+      run_bg = 1;}
+
+    // 3. if last word immediately preceded by "<" it shall be 
+    // interpreted as filename operand of input redirection operator 
+    if (strcmp(word_arr[word_arr_len-1],"<") == 0) {
+      infile = word_arr[i+1];
+      //free(word_arr[i]);
+      word_arr[i] = NULL;}
+
+    // 4. if last word immediately prceded by ">" it shall be 
+    // interpreted as filename operand of output redirection operator 
+    if (strcmp(word_arr[word_arr_len-1],">") == 0) {
+      outfile = word_arr[i+1];
+      //free(word_arr[i]);
+      word_arr[i] = NULL;}
+
+    // steps 3/4 can occur in either order 
+    // all other words regular words and form the command and its arguments 
+    // tokens in 1-4 not included as command arguments 
+    // if "<", ">", and "&" appear outside end-of-line context described above, they are treated
+    // as regular arguments (see the description for e.g.) 
+ 
+    // examples
+    //  
+    // [command] [arguments] [> outfile] [< infile ] [&] [#comment]
+    // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
+  } 
+
+  if (infile || outfile || run_bg) printf("yay"); 
+  
   // execute built-ins
   // built-in cd // LEFT OFF HERE -- WORKS!
   if (strcmp(word_arr[0],"cd") == 0){
-    cd_smallsh(word_arr[1]);
+    cd_smallsh(word_arr[1]); // TODO check error conditions 
     return 0;
   } 
 
@@ -329,17 +373,26 @@ int parse_words(char *word_arr[], int word_arr_len){
       // TODO: The exit built-in takes one argument. If not provided, 
       // the argument is implied to be the expansion of “$?”, 
       // the exit status of the last foreground command.
+      char exit_arg; 
+
+      if (word_arr_len == 1){ 
+        char last_fg_exit_status_str[12];
+        sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); // TODO %JD? 
+      };
+      if (word_arr_len > 2){ 
+        fprintf(stderr, "too many arguments to exit_smallsh()\n");
       // It shall be an error if more than one argument is provided 
       // or if an argument is provided that is not an integer.
       // IS IT SOMETHING LIKE word_arr[1] || last_fg_exit_status) 
-      exit_smallsh(0);
-      }
+      // 
+      } // 230216:2312 - LEFT OFF HERE -- sorting this exit situation 
+      exit_smallsh(last_f);
 
   else {
 
 
   // non-built-ins 
-  non_built_ins(word_arr);
+  //non_built_ins(word_arr);
   return 0;
   }
 
@@ -351,37 +404,21 @@ int parse_words(char *word_arr[], int word_arr_len){
   return 0; 
 }
 
+
 // 2. WORD SPLITTING  
 int split_words(char *line, ssize_t line_length){
 
-  // create list of pointers to strings
-  char *word_arr[line_length]; // 512??
+  char *word_arr[line_length]; // req: pointers to strings, min 512 supported
+  char delim[] = " "; // TODO: {getenv("IFS") || " \t\n"};
   int n = 0;
 
   // tokenize line in loop, expand words 
-  char delim[] = " ";//{getenv("IFS") || " \t\n"};
   char *token = strtok(line, delim);
   while(token) {
-    word_arr[n] = strdup(token);// NOTE: remember to free each call to strdup
+    word_arr[n] = strdup(token);// NOTE: free each call to strdup
     word_arr[n][strcspn(word_arr[n], "\n")] = 0; // remove newline [1]
-    
     // expand word, as applicable
-    //char *word = expand_word(&word_arr[n]); 
-    expand_word(&word_arr[n]);
-
-    //BUILT-INS
-    
-    // execute cd - *works
-    //cd_smallsh(word);
-    
-    // execute exit - *works
-    // default exit code is 
-    //int exit_code = 0; //NOTE/TODO: see expanson of "$?" exit status of last foreground command 
-    //if (strcmp(word, "exit") == 0) exit_smallsh(0);
-    
-    // NON-BUILT-INS
-    //non_built_ins(word);
-
+    expand_word(&word_arr[n]); // can asssign char *word = ... to return
     // increment and get next token 
     n++; 
     token = strtok(NULL, delim);
@@ -389,15 +426,10 @@ int split_words(char *line, ssize_t line_length){
   // TODO need null termination at end of word_arr??? 
   // https://discord.com/channels/1061573748496547911/1061579120317837342/1074827823832907776
 
+  // parse the command word array 
+  // TODO consider move to main()
+  parse_words(word_arr, n);
 
-
-  // Checking line 
-  //non_built_ins(word_arr); // LEFT OFF HERE WITH EXPERIMENT
-
-  parse_words(word_arr, n); 
-  //for (int i = 0; i < n; i++) {
-  //  printf("line_arr[%i] of %lu lines | val: %s\n",i, line_length, word_arr[i]); 
-  //  free(word_arr[i]);};
   return 0;
 }
 
@@ -411,39 +443,40 @@ int main(){
 
   for (;;) {
 
-    /* REQ: Check for any un-waited-for background processes in same pid 
-     *      group as smallsh and print following message 
-     *        If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
-     *        If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
-     *        If stopped: smallsh send it SIGCONT and print to stderr :“Child process %d stopped. Continuing.\n”, <pid>"
-     *        e.g., fprintf(stderr, "Child process %jd done. Exit status %d\n", (intmax_t) pid, status); 
-    */
-    //pid_t pid_smallsh = getpid(); 
-    //pid_t pid_grp_smallsh = getpgrp(); 
-    
-
-    /* Display prompt from PS1 */	
+    // req: Check for any un-waited-for background processes in same pid 
+    // group as smallsh and print following message 
+    // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
+    // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
+    // If stopped: smallsh send it SIGCONT and print to stderr :“Child process %d stopped. Continuing.\n”, <pid>"
+    // e.g., fprintf(stderr, "Child process %jd done. Exit status %d\n", (intmax_t) pid, status); 
+   
+    // Display prompt from PS1	
     // REQ/TODO: If reading interrupted by signal (see sig handling) a newline is printed, then 
     // a new command prompt shall be printed (including checking for background processes) and 
     // reading input shall resume. See CLEARERR(3) and reset errno. 
-    //
-    const char *env_p = getenv("PS1");  // TODO: error check?
+
+    // req: print a prompt to stderr by expanding the PS1 
+    const char *env_p = getenv("PS1");  // pointer or null   
     fprintf(stderr, "%s",(env_p ? env_p : ""));
 
-    /* Get line of input from stdin */
-    ssize_t line_length = getline(&line, &n, stdin); /* Reallocates line */
+    // req: after prompt, read line from stdin (getline(3) 
+    ssize_t line_length = getline(&line, &n, stdin); 
     if (feof(stdin)){
-      exit_smallsh(last_fg_exit_status); // [x] REQ: EOF on stdin interpreted as implied `exit $?` 
+      // req: EOF on stdin interpreted as implied `exit $?`
+      // TODO req: if reading interrupted by signal (signal handling) 
+      //   then newline printed, check for background processes, new prompt, read resume 
+      //   see clearerr(3) and reset errno 
+      exit_smallsh(last_fg_exit_status);  
     }
-
+    // handle error 
     if (line_length == -1){
       free(line);
-      perror("getline() failed");
+      fprintf(stderr, "getline() failed\n");
       clearerr(stdin); // TODO: Right? no EOF reset stdin (discussed somewhere + M5 see notes) 
       exit(EXIT_FAILURE); // TODO right error? 
     }
 
-    /* Split words from line */ 
+    // 2. Word Splitting 
     split_words(line, line_length);
 
 
