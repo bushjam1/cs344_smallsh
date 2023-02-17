@@ -24,7 +24,7 @@
 // "$?" expansion 
 int last_fg_exit_status = 0;
 // "$!" expansion 
-int last_bg_exit_status; // NULL by default 
+int most_rec_bg_pid; // NULL by default 
 
 
 // HELPER FUNCTIONS 
@@ -128,7 +128,7 @@ int non_built_ins(char *token_arr[]){
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
 
-    int bg_proc = 1; 
+    int is_bg_proc = 1; 
 
     switch(childPid){
 
@@ -179,100 +179,85 @@ int non_built_ins(char *token_arr[]){
         //             waitpid shall not suspend calling thread if status not immediately avail
         //
         // So foreground? block wait and record appropriate values after wait. 
-        // Background? record $!. Then check change of any processes before prompt.
        
         
-        // REQ: $? shell variable shall set to exit status of waited-for command
         
         // check if foreground process or background process
+        // bg is default 
 
-        // foregound / blocking wait 
-        if (bg_proc == 0){
+        
+        // '&' operator not present -> blocking wait / foreground 
+        if (is_bg_proc == 0){ 
 
-          childPid = waitpid(0, &childStatus, 0);
+          childPid = waitpid(0, &childStatus, 0); // TODO error for waitpid
 
-          // any special handling of the waitpid return??? 
-          //
-          fprintf(stderr, "FG waitpid() returned PID=%d childstatus=%d\n",childPid, childStatus); 
+          // check error
+          if (childPid == -1){fprintf(stderr, "waitpid() failed\n"); exit(1); } // TODO error good? 
+
+          // 1) if finished/exited...
+          if(WIFEXITED(childStatus)){
+            fprintf(stderr, "Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+            // req: The "$?" shell variable shall be set to the exit status of the waited-for command. 
+            last_fg_exit_status = childStatus; 
+          }
+          // 2) if term'd by signal...
+          else if(WIFSIGNALED(childStatus)){
+            fprintf(stderr, "Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
+            // req: ...set '$?' to 128 + [n]/the number of terming signal to child 
+            last_fg_exit_status = 128 + childStatus; 
+          }  
+          // 3) if stopped...
+          else if(WIFSTOPPED(childStatus)){
+            // req: send it the SIGCONT signal 
+            kill(childPid, SIGCONT); // TODO: error -1
+            // req: print following to stderr: 
+            fprintf(stderr, "Child process %d stopped. Continuing.\n", childPid); // TODO: (intmax_t) childPid?
+            // req: "$!"/bg shall be updated to the pid of the child process as if had been a bg command 
+            most_rec_bg_pid = childPid; 
+            // req: Smallsh shall no longer perform a block wait on this process, 
+            // and it will continue to run in the background
+            goto BACKGROUND; // TODO - ideal?
+          }
         }
 
         // background / non-blocking wait + poll
-        else if (bg_proc == 1){ 
+        // NOTE: 
+        // Background? record $!. Then check change of any processes before prompt.
+        else if (is_bg_proc == 1){
+          BACKGROUND: 
+            // req: child process runs in "background", and parent smallsh process does not wait
+            while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
+            //  req: background is the default behavior of a forked process! 
+            //  req: The "$!" value should be set to the pid of such a process.
+            most_rec_bg_pid = childPid;  
 
-          while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
-          // check at each iteration if
-          
-          // print value of waitpid 
-          fprintf(stderr, "waitpid() returned PID=%d childstatus=%d",childPid, childStatus); 
+            // check at each iteration if
+            // print value of waitpid 
+            fprintf(stderr, "waitpid() returned PID=%d childstatus=%d",childPid, childStatus); 
         
-          // waitpid() error
-          if (childPid == -1){perror("waitpid() failed\n"); exit(1); } // TODO error good? 
-
-          // 1) finished - WIFEXITED
-          if(WIFEXITED(childStatus)){
-            printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
-            last_fg_exit_status = childStatus; 
-          }
-        
-          // 2) stopped - WIFSTOPPED
-          if(WIFSTOPPED(childStatus)){
-            printf("Child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
-            // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
-            // TODO ... 
-          }
-        
-          // 3) signaled - WIFSIGNALED
-          if(WIFSIGNALED(childStatus)){
-            printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
-            // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
-            last_fg_exit_status = 128 + childStatus; 
-           
-          }  
-       
-        // background / non-blocking / polling loop 
-
-        //while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
-          // check at each iteration if
-          
-
-          // print value of waitpid 
-          //fprintf(stderr, "waitpid() returned PID=%d childstatus=%d",childPid, childStatus); 
-        
-          // waitpid() error
-          //if (childPid == -1){perror("waitpid() failed\n"); exit(1); } // TODO error good? 
-
-          // 1) finished - WIFEXITED
-          //if(WIFEXITED(childStatus)){
-          //  printf("Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
-          //  last_fg_exit_status = childStatus; 
-          //}
-        
-          // 2) stopped - WIFSTOPPED
-
-          //if(WIFSTOPPED(childStatus)){
-          //  printf("Child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
-            // REQ: if child proc stopped, send SIGCONT and print to stderr: "“Child process %d stopped. Continuing.\n”, <pid>"
-            // TODO ... 
-          }
-        
-          // 3) signaled - WIFSIGNALED
-          
-          //if(WIFSIGNALED(childStatus)){
-            //printf("Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
-            // REQ: if waited-for command term'd by signal, $? set to 128 + [n]/the number of terming signal to child 
-            //last_fg_exit_status = 128 + childStatus; 
-           
-          //}  
-
-        
+            // waitpid() error
+            if (childPid == -1){fprintf(stderr,"waitpid() failed\n"); exit(1); } // TODO error good? 
+            // 1) finished - WIFEXITED
+            if(WIFEXITED(childStatus)){
+              printf("bg child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+              // anything specific? 
+            }
+            // 2) stopped - WIFSTOPPED
+            if(WIFSTOPPED(childStatus)){
+              printf("bg child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
+              // anything specific? 
+            }
+            // 3) signaled - WIFSIGNALED
+            if(WIFSIGNALED(childStatus)){
+              printf("bg child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
+              // anything specific? 
+            }  
           // LEFT OFF 230215:1937
           // *need to implement non-blocking wait for &
           // currently blocking wait, parent waiting until child exited 
           // so non-blocking on background (~WUNTRACED | WNOHANG ??)
-          //
           // LPI pp. ~548 helpful 
           // also review M4 and search discord for "waitpid" and "blocking" 
-          
           //             SIGNAL HANDLING 
           //             The SIGTSTP signal shall be ignored by smallsh.
           //             The SIGINT signal shall be ignored (SIG_IGN) at 
@@ -285,13 +270,12 @@ int non_built_ins(char *token_arr[]){
           //             respond to this signal, so it sets its disposition to SIG_IGN.
           //             The SIGINT (CTRL-C) signal normally causes a process to exit 
           //             immediately, which is not desired.
-
           //break; ? 
+        } // while 
         }
-
         // parent waiting done once child exited 
         break;
-        }; 
+        } 
   return 0;
 }
 
@@ -320,11 +304,11 @@ char *expand_word(char *restrict *restrict word){
     
   // [todo] "$!" -> pid of most recent bg process
   // shall default to an empty string (““) if no background process ID is available
-  char last_bg_exit_status_str[12]; // TODO good size?
-  if (last_bg_exit_status) {
-    sprintf(last_bg_exit_status_str, "%d", last_bg_exit_status);
+  char most_rec_bg_pid_str[12]; // TODO good size?
+  if (most_rec_bg_pid) {
+    sprintf(most_rec_bg_pid_str, "%d", most_rec_bg_pid);
   }
-  str_gsub(word, "$!", (last_bg_exit_status ? last_bg_exit_status_str : "foxes")); 
+  str_gsub(word, "$!", (most_rec_bg_pid ? most_rec_bg_pid_str : "foxes")); 
  
   return *word;
 
