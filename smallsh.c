@@ -117,7 +117,7 @@ void exit_smallsh(int fg_exit_status){
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
+int non_built_ins(char *token_arr[]){ //, int run_bg, char *infile, char *outfile){
     
     // printf("Parent pid: %d\n", getpid()); 
     
@@ -131,7 +131,7 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
 
-    int is_bg_proc = run_bg; 
+    int is_bg_proc = 0;//run_bg; 
 
     switch(childPid){
 
@@ -316,9 +316,9 @@ char *expand_word(char *restrict *restrict word){
 int parse_words(char *word_arr[], int word_arr_len){
 
   // NOTE/TODO: array need to be null-terminated?
-  char *infile; 
-  char *outfile;
-  int run_bg; // set to 1 if '&' passed 
+  //char *infile; 
+  //char *outfile;
+  //int run_bg; // set to 1 if '&' passed 
 
   for (int i = 0; i < word_arr_len; i++){
 
@@ -331,19 +331,20 @@ int parse_words(char *word_arr[], int word_arr_len){
     if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
       //free(word_arr[i]); 
       word_arr[i] = NULL; 
-      run_bg = 1;}
+      //run_bg = 1;
+    }
 
     // 3. if last word immediately preceded by "<" it shall be 
     // interpreted as filename operand of input redirection operator 
     if (strcmp(word_arr[word_arr_len-1],"<") == 0) {
-      infile = word_arr[i+1];
+      //infile = word_arr[i+1];
       //free(word_arr[i]);
       word_arr[i] = NULL;}
 
     // 4. if last word immediately prceded by ">" it shall be 
     // interpreted as filename operand of output redirection operator 
     if (strcmp(word_arr[word_arr_len-1],">") == 0) {
-      outfile = word_arr[i+1];
+      //outfile = word_arr[i+1];
       //free(word_arr[i]);
       word_arr[i] = NULL;}
 
@@ -359,7 +360,7 @@ int parse_words(char *word_arr[], int word_arr_len){
     // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
   } 
 
-  if (infile || outfile || run_bg) printf("yay"); 
+  //if (infile || outfile || run_bg) printf("infile or outfile or run_bg\n"); 
   
   // execute built-ins
   // built-in cd // LEFT OFF HERE -- WORKS!
@@ -370,42 +371,46 @@ int parse_words(char *word_arr[], int word_arr_len){
 
   // built-in exit
   if (strcmp(word_arr[0], "exit") == 0){
-      // TODO: The exit built-in takes one argument. If not provided, 
-      // the argument is implied to be the expansion of “$?”, 
-      // the exit status of the last foreground command.
-      
-      //char exit_arg; 
-
-      //if (word_arr_len == 1){ 
-      //  char last_fg_exit_status_str[12];
-      //  sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); // TODO %JD? 
-      //};
-      //if (word_arr_len > 2)
-      //  fprintf(stderr, "too many arguments to exit_smallsh()\n");
-
-      // It shall be an error if more than one argument is provided 
-      // or if an argument is provided that is not an integer.
-      // IS IT SOMETHING LIKE word_arr[1] || last_fg_exit_status) 
-      // 
-       // 230216:2312 - LEFT OFF HERE -- sorting this exit situation 
-       // ..and messing with passing 4 params to non-built-ins
+    // TODO: The exit built-in takes one argument. If not provided, 
+    // the argument is implied to be the expansion of “$?”, 
+    // the exit status of the last foreground command.
+    if (word_arr_len == 1){
       exit_smallsh(last_fg_exit_status);
+    }
+    // req: It shall be an error if more than one argument is provided... 
+    // WORKS 
+    if (word_arr_len > 2) {
+      fprintf(stderr, "too many arguments for exit_smallsh()\n");
+      return 1;
+    }
+    // exactly one argument provided 
+    else{
+      char *endptr;
+      errno = 0; 
+      long exit_arg = strtol(word_arr[1], &endptr, 10);
+      // req: ..or if an argument is provided that is not an integer.
+      if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
+        perror("strtol");
+        return 1;
       }
-
-  else {
-
-    // non-built-ins 
-    non_built_ins(word_arr, run_bg, infile, outfile); 
-
-
-  return 0;
+      if (endptr == word_arr[1]){
+        fprintf(stderr, "No digits were found exit_smallsh()\n"); 
+        return 1;
+      exit_smallsh(exit_arg); //LEFT OFF HERE - if int passed but doesn't match it
+                              //runs a child command and execvp() says "No such file or directory"
+      }
+    }
   }
+  
+    // non-built-ins NEXT 
+    non_built_ins(word_arr);//, run_bg, infile, outfile); 
 
-  // check / free output 
-  for (int i = 0; i < word_arr_len; i++){
+    // check / free output 
+    for (int i = 0; i < word_arr_len; i++){
     //printf("word_arr[%d]: %s\n", i, word_arr[i]); 
-    free(word_arr[i]); 
-  }
+      free(word_arr[i]); 
+    }
+ 
   return 0; 
 }
 
@@ -445,6 +450,8 @@ int main(){
   // Main loop
   char *line = NULL;
   size_t n = 0;
+  pid_t pid = getpid();
+  printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
 
   for (;;) {
 
