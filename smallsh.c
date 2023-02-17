@@ -117,7 +117,7 @@ void exit_smallsh(int fg_exit_status){
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[]){
+int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
     
     // printf("Parent pid: %d\n", getpid()); 
     
@@ -131,7 +131,7 @@ int non_built_ins(char *token_arr[]){
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
 
-    int is_bg_proc = 0; 
+    int is_bg_proc = run_bg; 
 
     switch(childPid){
 
@@ -373,26 +373,31 @@ int parse_words(char *word_arr[], int word_arr_len){
       // TODO: The exit built-in takes one argument. If not provided, 
       // the argument is implied to be the expansion of “$?”, 
       // the exit status of the last foreground command.
-      char exit_arg; 
+      
+      //char exit_arg; 
 
-      if (word_arr_len == 1){ 
-        char last_fg_exit_status_str[12];
-        sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); // TODO %JD? 
-      };
-      if (word_arr_len > 2){ 
-        fprintf(stderr, "too many arguments to exit_smallsh()\n");
+      //if (word_arr_len == 1){ 
+      //  char last_fg_exit_status_str[12];
+      //  sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); // TODO %JD? 
+      //};
+      //if (word_arr_len > 2)
+      //  fprintf(stderr, "too many arguments to exit_smallsh()\n");
+
       // It shall be an error if more than one argument is provided 
       // or if an argument is provided that is not an integer.
       // IS IT SOMETHING LIKE word_arr[1] || last_fg_exit_status) 
       // 
-      } // 230216:2312 - LEFT OFF HERE -- sorting this exit situation 
-      exit_smallsh(last_f);
+       // 230216:2312 - LEFT OFF HERE -- sorting this exit situation 
+       // ..and messing with passing 4 params to non-built-ins
+      exit_smallsh(last_fg_exit_status);
+      }
 
   else {
 
+    // non-built-ins 
+    non_built_ins(word_arr, run_bg, infile, outfile); 
 
-  // non-built-ins 
-  //non_built_ins(word_arr);
+
   return 0;
   }
 
