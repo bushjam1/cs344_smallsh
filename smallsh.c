@@ -112,12 +112,12 @@ void exit_smallsh(int fg_exit_status){
   kill(0, SIGINT);
 
   //  exit immediately EXIT(3)
-  exit(fg_exit_status); // LEFT OFF 230217:0807 - CORRECT ?? showing 130 as last exit status - 
+  exit(fg_exit_status); // NOTE: status & 0377 returned to the parent 
 }
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[]){ //, int run_bg, char *infile, char *outfile){
+int non_built_ins(char *token_arr[], int run_bg){//, char *infile, char *outfile){
     
     // printf("Parent pid: %d\n", getpid()); 
     
@@ -131,7 +131,7 @@ int non_built_ins(char *token_arr[]){ //, int run_bg, char *infile, char *outfil
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
 
-    int is_bg_proc = 0;//run_bg; 
+    int is_bg_proc = run_bg; 
 
     switch(childPid){
 
@@ -201,13 +201,13 @@ int non_built_ins(char *token_arr[]){ //, int run_bg, char *infile, char *outfil
           if(WIFEXITED(childStatus)){
             fprintf(stderr, "Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
             // req: The "$?" shell variable shall be set to the exit status of the waited-for command. 
-            last_fg_exit_status = childStatus; 
+            last_fg_exit_status = WEXITSTATUS(childStatus);
           }
           // 2) if term'd by signal...
           else if(WIFSIGNALED(childStatus)){
             fprintf(stderr, "Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
             // req: ...set '$?' to 128 + [n]/the number of terming signal to child 
-            last_fg_exit_status = 128 + childStatus; 
+            last_fg_exit_status = 128 + WTERMSIG(childStatus); 
           }  
           // 3) if stopped...
           else if(WIFSTOPPED(childStatus)){
@@ -318,35 +318,42 @@ int parse_words(char *word_arr[], int word_arr_len){
   // NOTE/TODO: array need to be null-terminated?
   //char *infile; 
   //char *outfile;
-  //int run_bg; // set to 1 if '&' passed 
+  // LEFT OFF HERE 230217:1759 - trying to null and free array logic needs work
+  int run_bg = 0; // set to 1 if '&' passed 
 
-  for (int i = 0; i < word_arr_len; i++){
-
-    // 1. fist occurrence of "#" and additional words following are comment 
+  // 1. fist occurrence of "#" and additional words following are comment
+  int i = 0;
+  for (; i < word_arr_len; i++){
     if (strncmp(word_arr[i],"#", 1) == 0){
-      //free(word_arr[i]); 
-      word_arr[i] = NULL;} // repl w/ NULL to ignore rest  
+      printf("Comment start index %d <%s>\n",i, word_arr[i]); 
+      for(int j = i; j < word_arr_len; j++){
 
-    // 2. if last word is '&' it indicates the command run in bg
-    if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
-      //free(word_arr[i]); 
-      word_arr[i] = NULL; 
-      //run_bg = 1;
+        printf("word_arr[j] <%s> will be NULL-ed\n",word_arr[j]); 
+        word_arr[j] = NULL;
+        //free(word_arr[j]); 
+      }
     }
+  }
+  word_arr_len = i+1;
+  
+  // 2. if last word is '&' it indicates the command run in bg
+  // NOTE: 230217:16:40 this seems to work but how to return - sig handler?
+  if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
+    word_arr[word_arr_len-1] = NULL; 
+    run_bg = 1;
+  }
 
-    // 3. if last word immediately preceded by "<" it shall be 
+  // 3. if last word immediately preceded by "<" it shall be 
     // interpreted as filename operand of input redirection operator 
-    if (strcmp(word_arr[word_arr_len-1],"<") == 0) {
-      //infile = word_arr[i+1];
-      //free(word_arr[i]);
-      word_arr[i] = NULL;}
+    //if (strcmp(word_arr[word_arr_len-1],"<") == 0) {
+      //infile = word_arr[word_arr_len];
+    //  word_arr[word_arr_len-1] = NULL;}
 
     // 4. if last word immediately prceded by ">" it shall be 
     // interpreted as filename operand of output redirection operator 
-    if (strcmp(word_arr[word_arr_len-1],">") == 0) {
+    //if (strcmp(word_arr[word_arr_len-1],">") == 0) {
       //outfile = word_arr[i+1];
-      //free(word_arr[i]);
-      word_arr[i] = NULL;}
+    //  word_arr[i] = NULL;}
 
     // steps 3/4 can occur in either order 
     // all other words regular words and form the command and its arguments 
@@ -355,15 +362,14 @@ int parse_words(char *word_arr[], int word_arr_len){
     // as regular arguments (see the description for e.g.) 
  
     // examples
-    //  
     // [command] [arguments] [> outfile] [< infile ] [&] [#comment]
     // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
-  } 
+  //} 
 
   //if (infile || outfile || run_bg) printf("infile or outfile or run_bg\n"); 
   
   // execute built-ins
-  // built-in cd // LEFT OFF HERE -- WORKS!
+  // built-in cd 
   if (strcmp(word_arr[0],"cd") == 0){
     cd_smallsh(word_arr[1]); // TODO check error conditions 
     return 0;
@@ -371,10 +377,10 @@ int parse_words(char *word_arr[], int word_arr_len){
 
   // built-in exit
   if (strcmp(word_arr[0], "exit") == 0){
-    // TODO: The exit built-in takes one argument. If not provided, 
-    // the argument is implied to be the expansion of “$?”, 
-    // the exit status of the last foreground command.
+    // req: takes 1 argument. If not provided, it is implied to be
+    // expansion of “$?”, the exit status of the last foreground command.
     if (word_arr_len == 1){
+      printf("exiting passing: %d as argument\n",last_fg_exit_status); 
       exit_smallsh(last_fg_exit_status);
     }
     // req: It shall be an error if more than one argument is provided... 
@@ -388,7 +394,6 @@ int parse_words(char *word_arr[], int word_arr_len){
       char *endptr;
       errno = 0; 
       long exit_arg = strtol(word_arr[1], &endptr, 10);
-
       // req: ..or if an argument is provided that is not an integer.
       if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
         printf("A:\n");
@@ -404,14 +409,14 @@ int parse_words(char *word_arr[], int word_arr_len){
     }
   }
   
-    // non-built-ins NEXT 
-    non_built_ins(word_arr);//, run_bg, infile, outfile); 
+  // non-built-ins NEXT 
+  non_built_ins(word_arr, run_bg);//, infile, outfile); 
 
-    // check / free output 
-    for (int i = 0; i < word_arr_len; i++){
-    //printf("word_arr[%d]: %s\n", i, word_arr[i]); 
-      free(word_arr[i]); 
-    }
+  // check / free output 
+  for (int i = 0; i < word_arr_len; i++){
+  //printf("word_arr[%d]: %s\n", i, word_arr[i]); 
+    free(word_arr[i]); 
+  }
  
   return 0; 
 }
