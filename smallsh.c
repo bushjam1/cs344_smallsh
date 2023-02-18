@@ -71,6 +71,24 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 //      Smallsh shall change its own current working directory 
 //      to the specified or implied path. It shall be an error if the operation fails.
 
+int open_file_smallsh(const char *filename,const int mode){
+
+  // mode 0 = read, mode 1 = write, mode 2 = append 
+  //  
+  // If a filename was specified as the operand to the input (“<”) 
+  // redirection operator, the specified file shall be opened for 
+  // reading on stdin. It shall be an error if the file cannot be 
+  // opened for reading or does not already exist.
+  //
+  //If a filename was specified as the operand to the output (“>”) 
+  //redirection operator, the specified file shall be opened for 
+  //writing on stdout. If the file does not exist, it shall be 
+  //created with permissions 0777. It shall be an error if the 
+  //file cannot be opened (or created) for writing.
+
+  return 0; 
+
+}
 int cd_smallsh(const char *newWd){
   int cwd_size = PATH_MAX; 
   char cwd[cwd_size]; // TODO: good size?
@@ -117,12 +135,14 @@ void exit_smallsh(int fg_exit_status){
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
+int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infile, char const *restrict outfile){
     
     // printf("Parent pid: %d\n", getpid()); 
    
     // infile / outfile 
+    //
     printf("infile: %s outfile: %s\n", infile, outfile);
+    
     // execvp(tokenArray[0], tokenArray)
     // TODO: sort this token_arr = newargv setup 
     char *newargv[] = {token_arr[0], token_arr[1], NULL};
@@ -157,43 +177,10 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
 
       // Parent process - childPid is pid of the child, parent will execute below 
       default: 
-        // printf(" I am a parent\n"); 
+            
+        // check if foreground process or background process - bg is default 
 
-        // waitpid(3) - pid_t waitpid(pid_t pid, int *stat_loc, int options)
-        //    pid - which child process(es) to wait for: 
-        //      if pid > 0, wait for that child pid; 
-        //      if pid -1, wait for any child process, similar to wait() 
-        //    stat_loc - 
-        //    options - can include the OR-ed value of 3 constants:
-        //      WUNTRACED 
-        //      WCONTINUED 
-        //      WNOHANG
-        //
-        //    obtain status of child processes 
-        //    idea of wait is to wait on some termination from child
-        //    
-        // might need signal handler / catcher for child 
-        //
-        // WUNTRACED - REQ: status of any child specified by pid that are stopped and 
-        //             whose status not reported shall be reported 
-        //             TEXT: In addition to returning information about terminated children, also
-        //             return information when a child is stopped by a signal
-        //
-        // WNOHANG   - LPI: If no child specified by pid has yet changed state, 
-        //             then return immediately instead of blocking (i.e., poll), 
-        //             In this case, return value of waitpid() is 0, if calling process has 
-        //             no children that match pid, waitpid() fails with error ECHILD 
-        //             waitpid shall not suspend calling thread if status not immediately avail
-        //
-        // So foreground? block wait and record appropriate values after wait. 
-       
-        
-        
-        // check if foreground process or background process
-        // bg is default 
-
-        
-        // '&' operator not present -> blocking wait / foreground 
+        // Foreground - '&' operator not present -> blocking wait 
         if (is_bg_proc == 0){ 
 
           childPid = waitpid(0, &childStatus, 0); // TODO error for waitpid
@@ -228,8 +215,7 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
         }
 
         // background / non-blocking wait + poll
-        // NOTE: 
-        // Background? record $!. Then check change of any processes before prompt.
+        // NOTE: Background? record $!. Then check change of any processes before prompt.
         else if (is_bg_proc == 1){
           BACKGROUND: 
             // req: child process runs in "background", and parent smallsh process does not wait
@@ -322,21 +308,18 @@ int parse_words(char *word_arr[], int word_arr_len){
   // NOTE/TODO: array need to be null-terminated?
   char *infile = NULL; 
   char *outfile = NULL;
-  // LEFT OFF HERE 230217:1759 - trying to null and free array logic needs work
   int run_bg = 0; // set to 1 if '&' passed
-  printf("word arr len %i\n", word_arr_len); 
+                  
   // 1. fist occurrence of "#" and additional words following are comment
   int i = 0;
   for (; i < word_arr_len; i++){
     if (strncmp(word_arr[i],"#", 1) == 0){
       word_arr[i] = NULL;
       word_arr_len -= (word_arr_len - i);
-      printf("comment found at %i word_arr_len is now %i\n", i, word_arr_len); 
       }
   }
   
   // 2. if last word is '&' it indicates the command run in bg
-  // NOTE: 230217:16:40 this seems to work but how to return - sig handler?
   if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
     word_arr[word_arr_len-1] = NULL; 
     run_bg = 1;
@@ -347,16 +330,21 @@ int parse_words(char *word_arr[], int word_arr_len){
   if (strcmp(word_arr[word_arr_len-2],"<") == 0) {
     infile = word_arr[word_arr_len-1];
     printf("we have infile <\n");
-    //word_arr[word_arr_len-1] = NULL;
+    //free(word_arr[word_arr_len-2]);
+    word_arr[word_arr_len-2] = NULL;
+    word_arr_len -= 2;
   }
 
   // 4. if last word immediately prceded by ">" it shall be 
   // interpreted as filename operand of output redirection operator 
   if (strcmp(word_arr[word_arr_len-2],">") == 0) {
-    printf("we have outfile >\n");
     outfile = word_arr[word_arr_len-1];
-    //word_arr[i] = NULL;
-   }
+    printf("we have outfile >\n");
+    //free(word_arr[word_arr_len-2]);
+    word_arr[word_arr_len-2] = NULL;
+    word_arr_len -= 2;
+
+  }
 
     // steps 3/4 can occur in either order 
     // all other words regular words and form the command and its arguments 
@@ -369,7 +357,12 @@ int parse_words(char *word_arr[], int word_arr_len){
     // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
   //} 
 
-  //if (infile || outfile || run_bg) printf("infile or outfile or run_bg\n"); 
+  //if (infile || outfile || run_bg) printf("infile or outfile or run_bg\n");
+  //printf("Command arguments will be:\n");
+  //for (int i = 0; i < word_arr_len; i++){printf("word_arr[%i]: %s\n", i, word_arr[i]);}
+  //if (infile){printf("Infile will be: %s\n",infile);};
+  //if (outfile){printf("Outfile will be: %s\n",outfile);};
+  //exit(1);
   
   // execute built-ins
   // built-in cd 
@@ -383,13 +376,13 @@ int parse_words(char *word_arr[], int word_arr_len){
     // req: takes 1 argument. If not provided, it is implied to be
     // expansion of “$?”, the exit status of the last foreground command.
     if (word_arr_len == 1){
-      printf("exiting passing: %d as argument\n",last_fg_exit_status); 
+      printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
       exit_smallsh(last_fg_exit_status);
     }
     // req: It shall be an error if more than one argument is provided... 
     // WORKS 
     if (word_arr_len > 2) {
-      fprintf(stderr, "too many arguments for exit_smallsh()\n");
+      fprintf(stderr, "Too many arguments for exit_smallsh()\n");
       return 1;
     }
     // exactly one argument provided 
@@ -399,12 +392,10 @@ int parse_words(char *word_arr[], int word_arr_len){
       long exit_arg = strtol(word_arr[1], &endptr, 10);
       // req: ..or if an argument is provided that is not an integer.
       if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
-        printf("A:\n");
         perror("strtol");
         return 1;
       }
       else if (endptr == word_arr[1]){
-        printf("B:\n"); 
         fprintf(stderr, "No digits were found exit_smallsh()\n"); 
         return 1;
       }
@@ -412,12 +403,12 @@ int parse_words(char *word_arr[], int word_arr_len){
     }
   }
   
-  // non-built-ins NEXT 
+  // non-built-ins 
   non_built_ins(word_arr, run_bg, infile, outfile); 
 
   // check / free output 
+  // maybe track the indices of nulled above 
   for (int i = 0; i < word_arr_len; i++){
-  //printf("word_arr[%d]: %s\n", i, word_arr[i]); 
     free(word_arr[i]); 
   }
  
