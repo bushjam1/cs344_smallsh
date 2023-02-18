@@ -27,10 +27,19 @@
 // "$?" expansion - req: default to 0 ("0") 
 int last_fg_exit_status = 0;
 // "$!" expansion 
-pid_t most_rec_bg_pid; // NULL by default 
-
+pid_t most_rec_bg_pid; // NULL by default
 
 // HELPER FUNCTIONS 
+//
+void print_arr(char *arr[], int size){
+  for (int i = 0; i < size; i++){
+    if (arr[i] == NULL){
+      printf("arr[%i] is NULL\n",i); 
+    } else {
+      printf("arr[%i]: %s\n",i, arr[i]); 
+    }
+  }
+}
 
 // string substitution 
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
@@ -67,11 +76,11 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 // REQ: The cd built-in takes one argument. If not provided, 
 //      the argument is implied to be the expansion of “~/”, 
 //      the value of the HOME environment variable
-//      If shall be an error if more than one argument is provided.
+//      Idelimf shall be an error if more than one argument is provided.
 //      Smallsh shall change its own current working directory 
 //      to the specified or implied path. It shall be an error if the operation fails.
 
-int open_file_smallsh(const char *filename, const int mode){
+//int open_file_smallsh(const char *filename, const int mode){
 
   // mode 0 = read, mode 1 = write, mode 2 = append 
   //  
@@ -86,9 +95,9 @@ int open_file_smallsh(const char *filename, const int mode){
   // created with permissions 0777. It shall be an error if the 
   // file cannot be opened (or created) for writing."
 
-  return 0; 
+  //return 0; 
 
-}
+//}
 int cd_smallsh(const char *newWd){
   int cwd_size = PATH_MAX; 
   char cwd[cwd_size]; // TODO: good size?
@@ -136,16 +145,18 @@ void exit_smallsh(int fg_exit_status){
 
 // NON-BUILT-INS
 int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infile, char const *restrict outfile){
-    
+        
     // printf("Parent pid: %d\n", getpid()); 
    
     // infile / outfile 
     //
     printf("infile: %s outfile: %s\n", infile, outfile);
+
     
     // execvp(tokenArray[0], tokenArray)
     // TODO: sort this token_arr = newargv setup 
-    char *newargv[] = {token_arr[0], token_arr[1], NULL};
+    ///char *newargv[] = {token_arr[0], token_arr[1], NULL};
+    char *words[] = {"echo", "123", "456", NULL};
 
     int childStatus;
 
@@ -169,7 +180,8 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
         //most_rec_bg_pid = childPid;
 		    printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
-		    execvp(newargv[0], newargv);
+        for (int i = 0; i < 2; i++) {printf("token_arr[%i] %s\n", i, token_arr[i]);}
+		    execvp(words[0], words);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
 		    exit(2); // TODO error good? 
@@ -305,6 +317,16 @@ char *expand_word(char *restrict *restrict word){
 // 4. PARSING 
 int parse_words(char *word_arr[], int word_arr_len){
 
+  //printf("A: size of word arr %i\n", word_arr_len); 
+  //for (int i = 0; i < word_arr_len; i++){
+  //  if (word_arr[i]== NULL){
+  //    printf("word_arr[%i] is NULL\n", i);
+  //} else {
+  //  printf("word_arr[%i] %s\n",i, word_arr[i]); 
+  //}
+  //}
+  //exit(1); 
+
   // NOTE/TODO: array need to be null-terminated?
   char *infile = NULL; 
   char *outfile = NULL;
@@ -313,40 +335,58 @@ int parse_words(char *word_arr[], int word_arr_len){
   // 1. fist occurrence of "#" and additional words following are comment
   int i = 0;
   for (; i < word_arr_len; i++){
-    if (strncmp(word_arr[i],"#", 1) == 0){
+    if (word_arr[i] == NULL) break;
+    else if (strncmp(word_arr[i],"#", 1) == 0){
       word_arr[i] = NULL;
-      word_arr_len -= (word_arr_len - i);
-      }
+      word_arr_len -= (word_arr_len - i - 1);
+     }
   }
+  //printf("\nAFTER #\n"); 
+  //print_arr(word_arr, word_arr_len); 
+  //exit(1);
   
   // 2. if last word is '&' it indicates the command run in bg
-  if (strcmp(word_arr[word_arr_len-1],"&") == 0) {
-    word_arr[word_arr_len-1] = NULL; 
+  if (strcmp(word_arr[word_arr_len-2],"&") == 0) {
+    word_arr[word_arr_len-2] = NULL;
+    word_arr_len -= 1; 
     run_bg = 1;
+
+    //printf("\nAFTER &\n"); 
+    //print_arr(word_arr, word_arr_len); 
+    //if (run_bg == 1) printf("run bg\n"); 
+    //exit(0); 
   }
 
   // 3. if last word immediately preceded by "<" it shall be 
   // interpreted as filename operand of input redirection operator 
-  if (strcmp(word_arr[word_arr_len-2],"<") == 0) {
-    infile = word_arr[word_arr_len-1];
-    printf("we have infile <\n");
+  if (strcmp(word_arr[word_arr_len-3],"<") == 0) {
+    infile = word_arr[word_arr_len-2];
+    //printf("we have infile(<): %s\n", infile);
     //free(word_arr[word_arr_len-2]);
-    word_arr[word_arr_len-2] = NULL;
+    word_arr[word_arr_len-3] = NULL;
     word_arr_len -= 2;
+
+    //printf("\nAFTER < \n"); 
+    //print_arr(word_arr, word_arr_len); 
+    //exit(0);
   }
 
+  // NOTE w/ 'else if' assuming '<' and '>' cannot be a filename 
   // 4. if last word immediately prceded by ">" it shall be 
   // interpreted as filename operand of output redirection operator 
-  if (strcmp(word_arr[word_arr_len-2],">") == 0) {
-    outfile = word_arr[word_arr_len-1];
-    printf("we have outfile >\n");
+  else if (strcmp(word_arr[word_arr_len-3],">") == 0) {
+    outfile = word_arr[word_arr_len-2];
+    //printf("we have outfile(>): %s \n", outfile);
     //free(word_arr[word_arr_len-2]);
-    word_arr[word_arr_len-2] = NULL;
+    word_arr[word_arr_len-3] = NULL;
     word_arr_len -= 2;
 
+    //printf("\nAFTER > \n"); 
+    //print_arr(word_arr, word_arr_len); 
+    //exit(0);
   }
 
-    // steps 3/4 can occur in either order 
+  // steps 3/4 can occur in either order 
     // all other words regular words and form the command and its arguments 
     // tokens in 1-4 not included as command arguments 
     // if "<", ">", and "&" appear outside end-of-line context described above, they are treated
@@ -355,13 +395,13 @@ int parse_words(char *word_arr[], int word_arr_len){
     // examples
     // [command] [arguments] [> outfile] [< infile ] [&] [#comment]
     // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
-  //} 
-
-  //if (infile || outfile || run_bg) printf("infile or outfile or run_bg\n");
+  
+  // TESTING 
   //printf("Command arguments will be:\n");
   //for (int i = 0; i < word_arr_len; i++){printf("word_arr[%i]: %s\n", i, word_arr[i]);}
   //if (infile){printf("Infile will be: %s\n",infile);};
   //if (outfile){printf("Outfile will be: %s\n",outfile);};
+  //if (run_bg == 1) printf("Command will run in background\n"); 
   //exit(1);
   
   // execute built-ins
@@ -420,7 +460,9 @@ int parse_words(char *word_arr[], int word_arr_len){
 int split_words(char *line, ssize_t line_length){
 
   char *word_arr[line_length]; // req: pointers to strings, min 512 supported
-  char delim[] = " "; // TODO: {getenv("IFS") || " \t\n"};
+  //char delim[] = {getenv("IFS") || " \t\n"};
+  char delim[] = " ";
+  
   int n = 0;
 
   // tokenize line in loop, expand words 
@@ -434,12 +476,13 @@ int split_words(char *line, ssize_t line_length){
     n++; 
     token = strtok(NULL, delim);
   }
+  word_arr[n] = NULL; 
   // TODO need null termination at end of word_arr??? 
   // https://discord.com/channels/1061573748496547911/1061579120317837342/1074827823832907776
 
   // parse the command word array 
   // TODO consider move to main()
-  parse_words(word_arr, n);
+  parse_words(word_arr, n+1);
 
   return 0;
 }
@@ -453,6 +496,9 @@ int main(){
   size_t n = 0;
   pid_t pid = getpid();
   printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
+
+  // FOR dev purposes - remove
+
 
   for (;;) {
 
@@ -504,8 +550,6 @@ int main(){
 }
 
 
-/* SOURCES
- * [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
- *
- * 
- */
+// SOURCES
+// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
+
