@@ -71,20 +71,20 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 //      Smallsh shall change its own current working directory 
 //      to the specified or implied path. It shall be an error if the operation fails.
 
-int open_file_smallsh(const char *filename,const int mode){
+int open_file_smallsh(const char *filename, const int mode){
 
   // mode 0 = read, mode 1 = write, mode 2 = append 
   //  
-  // If a filename was specified as the operand to the input (“<”) 
+  // req: "If a filename was specified as the operand to the input (“<”) 
   // redirection operator, the specified file shall be opened for 
   // reading on stdin. It shall be an error if the file cannot be 
-  // opened for reading or does not already exist.
+  // opened for reading or does not already exist."
   //
-  //If a filename was specified as the operand to the output (“>”) 
-  //redirection operator, the specified file shall be opened for 
-  //writing on stdout. If the file does not exist, it shall be 
-  //created with permissions 0777. It shall be an error if the 
-  //file cannot be opened (or created) for writing.
+  // req: "If a filename was specified as the operand to the output (“>”) 
+  // redirection operator, the specified file shall be opened for 
+  // writing on stdout. If the file does not exist, it shall be 
+  // created with permissions 0777. It shall be an error if the 
+  // file cannot be opened (or created) for writing."
 
   return 0; 
 
@@ -149,12 +149,9 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
 
     int childStatus;
 
-    // Fork a new process, 
-    // if successful value of childPid is 0 in child, child's pid in parent 
+    // Fork a new process - if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
     printf("->child pid %jd\n",(intmax_t) childPid); 
-
-    int is_bg_proc = run_bg; 
 
     switch(childPid){
 
@@ -166,6 +163,9 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
 
       // Child process will execute this branch
       case 0: 
+        // req: "Perform all redirection inside the child process (after calling fork), 
+        // so that you don’t change the parent process’s file descriptors."
+
         //most_rec_bg_pid = childPid;
 		    printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
@@ -181,7 +181,7 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
         // check if foreground process or background process - bg is default 
 
         // Foreground - '&' operator not present -> blocking wait 
-        if (is_bg_proc == 0){ 
+        if (run_bg == 0){ 
 
           childPid = waitpid(0, &childStatus, 0); // TODO error for waitpid
 
@@ -216,7 +216,7 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
 
         // background / non-blocking wait + poll
         // NOTE: Background? record $!. Then check change of any processes before prompt.
-        else if (is_bg_proc == 1){
+        else if (run_bg == 1){
           BACKGROUND: 
             // req: child process runs in "background", and parent smallsh process does not wait
             while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
