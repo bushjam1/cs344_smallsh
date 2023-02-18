@@ -117,10 +117,12 @@ void exit_smallsh(int fg_exit_status){
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[], int run_bg){//, char *infile, char *outfile){
+int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
     
     // printf("Parent pid: %d\n", getpid()); 
-    
+   
+    // infile / outfile 
+    printf("infile: %s outfile: %s\n", infile, outfile);
     // execvp(tokenArray[0], tokenArray)
     // TODO: sort this token_arr = newargv setup 
     char *newargv[] = {token_arr[0], token_arr[1], NULL};
@@ -316,25 +318,20 @@ char *expand_word(char *restrict *restrict word){
 int parse_words(char *word_arr[], int word_arr_len){
 
   // NOTE/TODO: array need to be null-terminated?
-  //char *infile; 
-  //char *outfile;
+  char *infile = NULL; 
+  char *outfile = NULL;
   // LEFT OFF HERE 230217:1759 - trying to null and free array logic needs work
-  int run_bg = 0; // set to 1 if '&' passed 
-
+  int run_bg = 0; // set to 1 if '&' passed
+  printf("word arr len %i\n", word_arr_len); 
   // 1. fist occurrence of "#" and additional words following are comment
   int i = 0;
   for (; i < word_arr_len; i++){
     if (strncmp(word_arr[i],"#", 1) == 0){
-      printf("Comment start index %d <%s>\n",i, word_arr[i]); 
-      for(int j = i; j < word_arr_len; j++){
-
-        printf("word_arr[j] <%s> will be NULL-ed\n",word_arr[j]); 
-        word_arr[j] = NULL;
-        //free(word_arr[j]); 
+      word_arr[i] = NULL;
+      word_arr_len -= (word_arr_len - i);
+      printf("comment found at %i word_arr_len is now %i\n", i, word_arr_len); 
       }
-    }
   }
-  word_arr_len = i+1;
   
   // 2. if last word is '&' it indicates the command run in bg
   // NOTE: 230217:16:40 this seems to work but how to return - sig handler?
@@ -344,16 +341,20 @@ int parse_words(char *word_arr[], int word_arr_len){
   }
 
   // 3. if last word immediately preceded by "<" it shall be 
-    // interpreted as filename operand of input redirection operator 
-    //if (strcmp(word_arr[word_arr_len-1],"<") == 0) {
-      //infile = word_arr[word_arr_len];
-    //  word_arr[word_arr_len-1] = NULL;}
+  // interpreted as filename operand of input redirection operator 
+  if (strcmp(word_arr[word_arr_len-2],"<") == 0) {
+    infile = word_arr[word_arr_len-1];
+    printf("we have infile <\n");
+    //word_arr[word_arr_len-1] = NULL;
+  }
 
-    // 4. if last word immediately prceded by ">" it shall be 
-    // interpreted as filename operand of output redirection operator 
-    //if (strcmp(word_arr[word_arr_len-1],">") == 0) {
-      //outfile = word_arr[i+1];
-    //  word_arr[i] = NULL;}
+  // 4. if last word immediately prceded by ">" it shall be 
+  // interpreted as filename operand of output redirection operator 
+  if (strcmp(word_arr[word_arr_len-2],">") == 0) {
+    printf("we have outfile >\n");
+    outfile = word_arr[word_arr_len-1];
+    //word_arr[i] = NULL;
+   }
 
     // steps 3/4 can occur in either order 
     // all other words regular words and form the command and its arguments 
@@ -410,7 +411,7 @@ int parse_words(char *word_arr[], int word_arr_len){
   }
   
   // non-built-ins NEXT 
-  non_built_ins(word_arr, run_bg);//, infile, outfile); 
+  non_built_ins(word_arr, run_bg, infile, outfile); 
 
   // check / free output 
   for (int i = 0; i < word_arr_len; i++){
