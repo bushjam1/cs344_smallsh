@@ -132,6 +132,7 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
     // Fork a new process, 
     // if successful value of childPid is 0 in child, child's pid in parent 
     pid_t childPid = fork();
+    printf("->child pid %jd\n",(intmax_t) childPid); 
 
     int is_bg_proc = run_bg; 
 
@@ -145,7 +146,8 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
 
       // Child process will execute this branch
       case 0: 
-		    printf("child (%jd) running command\n", (intmax_t) getpid());
+        //most_rec_bg_pid = childPid;
+		    printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
 		    execvp(newargv[0], newargv);
 		    // exec only returns if there is an error
@@ -234,7 +236,7 @@ int non_built_ins(char *token_arr[], int run_bg, char *infile, char *outfile){
             while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
             //  req: background is the default behavior of a forked process! 
             //  req: The "$!" value should be set to the pid of such a process.
-            most_rec_bg_pid = childPid;  
+           // most_rec_bg_pid = childPid;  
 
             // check at each iteration if
             // print value of waitpid 
