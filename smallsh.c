@@ -29,8 +29,10 @@ int last_fg_exit_status = 0;
 // "$!" expansion 
 pid_t most_rec_bg_pid; // NULL by default
 
-// HELPER FUNCTIONS 
-//
+// HELPER FUNCTIONS / GLOBALS
+int debug = 1;
+
+
 void print_arr(char *arr[], int size){
   for (int i = 0; i < size; i++){
     if (arr[i] == NULL){
@@ -97,12 +99,12 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 
   //return 0; 
 
-//}
+// BUILT-IN CD
 int cd_smallsh(const char *newWd){
   int cwd_size = PATH_MAX; 
   char cwd[cwd_size]; // TODO: good size?
   getcwd(cwd, PATH_MAX);
-  printf("Current working directory (before cd): %s\n", cwd);
+  if (debug == 1) printf("Current working directory (before cd): %s\n", cwd);
 
   // attempt cd, print error if error - chdir(2)
   errno = 0; 
@@ -113,7 +115,7 @@ int cd_smallsh(const char *newWd){
   };
   // show cwd after cd 
   getcwd(cwd, cwd_size);
-  printf("Working directory (after cd): %s\n", cwd);
+  if (debug == 1) printf("Working directory (after cd): %s\n", cwd);
 
   // success return 
   return 0;
@@ -149,14 +151,10 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
     // printf("Parent pid: %d\n", getpid()); 
    
     // infile / outfile 
-    //
     printf("infile: %s outfile: %s\n", infile, outfile);
 
+    //char *words[] = {"echo", "123", "456", NULL};
     
-    // execvp(tokenArray[0], tokenArray)
-    // TODO: sort this token_arr = newargv setup 
-    ///char *newargv[] = {token_arr[0], token_arr[1], NULL};
-    char *words[] = {"echo", "123", "456", NULL};
 
     int childStatus;
 
@@ -181,7 +179,7 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
 		    printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
         for (int i = 0; i < 2; i++) {printf("token_arr[%i] %s\n", i, token_arr[i]);}
-		    execvp(words[0], words);
+		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
 		    exit(2); // TODO error good? 
@@ -190,8 +188,6 @@ int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infi
       // Parent process - childPid is pid of the child, parent will execute below 
       default: 
             
-        // check if foreground process or background process - bg is default 
-
         // Foreground - '&' operator not present -> blocking wait 
         if (run_bg == 0){ 
 
@@ -317,20 +313,9 @@ char *expand_word(char *restrict *restrict word){
 // 4. PARSING 
 int parse_words(char *word_arr[], int word_arr_len){
 
-  //printf("A: size of word arr %i\n", word_arr_len); 
-  //for (int i = 0; i < word_arr_len; i++){
-  //  if (word_arr[i]== NULL){
-  //    printf("word_arr[%i] is NULL\n", i);
-  //} else {
-  //  printf("word_arr[%i] %s\n",i, word_arr[i]); 
-  //}
-  //}
-  //exit(1); 
-
-  // NOTE/TODO: array need to be null-terminated?
   char *infile = NULL; 
   char *outfile = NULL;
-  int run_bg = 0; // set to 1 if '&' passed
+  int run_bg = 0; // 1 if '&' passed
                   
   // 1. fist occurrence of "#" and additional words following are comment
   int i = 0;
@@ -356,6 +341,12 @@ int parse_words(char *word_arr[], int word_arr_len){
     //if (run_bg == 1) printf("run bg\n"); 
     //exit(0); 
   }
+
+  // steps 3/4 can occur in either order 
+  // all other words regular words and form the command and its arguments 
+  // tokens in 1-4 not included as command arguments 
+  // if "<", ">", and "&" appear outside end-of-line context described above, they are treated
+  // as regular arguments (see the description for e.g.) 
 
   // 3. if last word immediately preceded by "<" it shall be 
   // interpreted as filename operand of input redirection operator 
@@ -386,24 +377,13 @@ int parse_words(char *word_arr[], int word_arr_len){
     //exit(0);
   }
 
-  // steps 3/4 can occur in either order 
-    // all other words regular words and form the command and its arguments 
-    // tokens in 1-4 not included as command arguments 
-    // if "<", ">", and "&" appear outside end-of-line context described above, they are treated
-    // as regular arguments (see the description for e.g.) 
- 
-    // examples
-    // [command] [arguments] [> outfile] [< infile ] [&] [#comment]
-    // [command] [arguments] [< infile ] [> outfile] [&] [#comment]
+  // req: If at this point no command word is present, 
+  // smallsh shall silently return to step 1 and print a new prompt message.
+  if (word_arr_len == 0 || word_arr[0] == NULL || strcmp(word_arr[0], "") == 0) return 0;
+  else {printf("There are commands:\n"); print_arr(word_arr, word_arr_len);}
+  exit(0);
   
-  // TESTING 
-  //printf("Command arguments will be:\n");
-  //for (int i = 0; i < word_arr_len; i++){printf("word_arr[%i]: %s\n", i, word_arr[i]);}
-  //if (infile){printf("Infile will be: %s\n",infile);};
-  //if (outfile){printf("Outfile will be: %s\n",outfile);};
-  //if (run_bg == 1) printf("Command will run in background\n"); 
-  //exit(1);
-  
+
   // execute built-ins
   // built-in cd 
   if (strcmp(word_arr[0],"cd") == 0){
