@@ -146,9 +146,60 @@ void exit_smallsh(int fg_exit_status){
 
 
 // NON-BUILT-INS
-int non_built_ins(char *token_arr[], int const run_bg, char const *restrict infile, char const *restrict outfile){
+int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
-    // printf("Parent pid: %d\n", getpid()); 
+    // printf("Parent pid: %d\n", getpid());
+    //
+    printf("Token arr len is %i\n", token_arr_len); 
+    print_arr(token_arr, token_arr_len); 
+
+    if (run_bg || infile || outfile) printf("yay\n"); 
+    //exit(0); 
+    // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
+
+    // built-in cd 
+    if (strcmp(token_arr[0],"cd") == 0){
+      cd_smallsh(token_arr[1]); // TODO check error conditions 
+      return 0;
+    } 
+    
+   
+    // built-in exit
+    if (strcmp(token_arr[0], "exit") == 0){
+      // req: takes 1 argument. If not provided, it is implied to be
+      // expansion of “$?”, the exit status of the last foreground command.
+      if (token_arr_len == 2 && token_arr[1] == NULL){
+        printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
+        exit_smallsh(last_fg_exit_status);
+      }
+    }
+      exit(0); 
+//      // req: It shall be an error if more than one argument is provided... 
+//      // WORKS 
+//      if (word_arr_len > 2) {
+//        fprintf(stderr, "Too many arguments for exit_smallsh()\n");
+//        return 1;
+//      }
+//      // exactly one argument provided 
+//      else{
+//       char *endptr;
+//        errno = 0; 
+//        long exit_arg = strtol(word_arr[1], &endptr, 10);
+//        // req: ..or if an argument is provided that is not an integer.
+//        if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
+//          perror("strtol");
+//          return 1;
+//        }
+//        else if (endptr == word_arr[1]){
+//          fprintf(stderr, "No digits were found exit_smallsh()\n"); 
+//          return 1;
+//        }
+//        exit_smallsh(exit_arg);
+//      }
+//    }
+    //
+    //
+    //
    
     // infile / outfile 
     printf("infile: %s outfile: %s\n", infile, outfile);
@@ -380,51 +431,53 @@ int parse_words(char *word_arr[], int word_arr_len){
   // req: If at this point no command word is present, 
   // smallsh shall silently return to step 1 and print a new prompt message.
   if (word_arr_len == 0 || word_arr[0] == NULL || strcmp(word_arr[0], "") == 0) return 0;
-  else {printf("There are commands:\n"); print_arr(word_arr, word_arr_len);}
-  exit(0);
+  //else {printf("There are commands:\n"); print_arr(word_arr, word_arr_len);}
+  //exit(0);
+  
+  
   
 
   // execute built-ins
   // built-in cd 
-  if (strcmp(word_arr[0],"cd") == 0){
-    cd_smallsh(word_arr[1]); // TODO check error conditions 
-    return 0;
-  } 
-
-  // built-in exit
-  if (strcmp(word_arr[0], "exit") == 0){
-    // req: takes 1 argument. If not provided, it is implied to be
-    // expansion of “$?”, the exit status of the last foreground command.
-    if (word_arr_len == 1){
-      printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
-      exit_smallsh(last_fg_exit_status);
-    }
-    // req: It shall be an error if more than one argument is provided... 
-    // WORKS 
-    if (word_arr_len > 2) {
-      fprintf(stderr, "Too many arguments for exit_smallsh()\n");
-      return 1;
-    }
-    // exactly one argument provided 
-    else{
-      char *endptr;
-      errno = 0; 
-      long exit_arg = strtol(word_arr[1], &endptr, 10);
-      // req: ..or if an argument is provided that is not an integer.
-      if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
-        perror("strtol");
-        return 1;
-      }
-      else if (endptr == word_arr[1]){
-        fprintf(stderr, "No digits were found exit_smallsh()\n"); 
-        return 1;
-      }
-      exit_smallsh(exit_arg);
-    }
-  }
+//  if (strcmp(word_arr[0],"cd") == 0){
+//    cd_smallsh(word_arr[1]); // TODO check error conditions 
+//    return 0;
+//  } 
+//
+//  // built-in exit
+//  if (strcmp(word_arr[0], "exit") == 0){
+//    // req: takes 1 argument. If not provided, it is implied to be
+//    // expansion of “$?”, the exit status of the last foreground command.
+//    if (word_arr_len == 1){
+//      printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
+//      exit_smallsh(last_fg_exit_status);
+//    }
+//    // req: It shall be an error if more than one argument is provided... 
+//    // WORKS 
+//    if (word_arr_len > 2) {
+//      fprintf(stderr, "Too many arguments for exit_smallsh()\n");
+//      return 1;
+//    }
+//    // exactly one argument provided 
+//    else{
+//      char *endptr;
+//      errno = 0; 
+//      long exit_arg = strtol(word_arr[1], &endptr, 10);
+//      // req: ..or if an argument is provided that is not an integer.
+//      if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
+//        perror("strtol");
+//        return 1;
+//      }
+//      else if (endptr == word_arr[1]){
+//        fprintf(stderr, "No digits were found exit_smallsh()\n"); 
+//        return 1;
+//      }
+//      exit_smallsh(exit_arg);
+//    }
+//  }
   
-  // non-built-ins 
-  non_built_ins(word_arr, run_bg, infile, outfile); 
+  // execute command list  
+  execute_commands(word_arr, word_arr_len, run_bg, infile, outfile); 
 
   // check / free output 
   // maybe track the indices of nulled above 
