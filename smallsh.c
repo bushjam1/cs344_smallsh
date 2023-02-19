@@ -32,9 +32,10 @@ int last_fg_exit_status = 0;
 pid_t most_rec_bg_pid; // NULL by default
 
 // HELPER FUNCTIONS / GLOBALS
-int debug = 1;
+int debug = 0;
 
 
+// print a string pointer array out with null values
 void print_arr(char *arr[], int size){
   for (int i = 0; i < size; i++){
     if (arr[i] == NULL){
@@ -75,15 +76,6 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
-
-
-// BUILT-IN CD
-// REQ: The cd built-in takes one argument. If not provided, 
-//      the argument is implied to be the expansion of “~/”, 
-//      the value of the HOME environment variable
-//      Idelimf shall be an error if more than one argument is provided.
-//      Smallsh shall change its own current working directory 
-//      to the specified or implied path. It shall be an error if the operation fails.
 
 //int open_file_smallsh(const char *filename, const int mode){
 
@@ -247,8 +239,21 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
       // Child process will execute this branch
       case 0: 
-        // req: "Perform all redirection inside the child process (after calling fork), 
-        // so that you don’t change the parent process’s file descriptors."
+        // Perform all redirection inside the child process (after calling fork), 
+        // so that you don’t change the parent process’s file descriptors. 
+        // Keep in mind, open() will assign to the lowest available file descriptor, 
+        // so simply closing a standard stream file descriptor and then opening 
+        // a new file is a common approach to redirection. 
+        // See dup2(2) for more information about how to associate a specific open 
+        // file with a specific file descriptor, in a more general sense. 
+        // Either approach should be sufficient.
+        //
+        // Don’t forget the mode argument to open() when using the O_CREAT flag! Very common mistake.
+
+        // file redirection 
+        // if there is an infile 
+        //
+        // if there is an outfile 
 
         //most_rec_bg_pid = childPid;
 		    if (debug == 1) printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
@@ -256,6 +261,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
+        print_arr(token_arr, token_arr_len); 
 		    exit(1); // TODO error good? TODO use own process to exit? 
 		    break;
 
@@ -275,13 +281,13 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
           // 1) if finished/exited...
           if(WIFEXITED(childStatus)){
-            fprintf(stderr, "Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+            if (debug == 1) fprintf(stderr, "Child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
             // req: The "$?" shell variable shall be set to the exit status of the waited-for command. 
             last_fg_exit_status = WEXITSTATUS(childStatus);
           }
           // 2) if term'd by signal...
           else if(WIFSIGNALED(childStatus)){
-            fprintf(stderr, "Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
+            if (debug == 1) fprintf(stderr, "Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
             // req: ...set '$?' to 128 + [n]/the number of terming signal to child 
             last_fg_exit_status = 128 + WTERMSIG(childStatus); 
           }  
@@ -290,7 +296,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
             // req: send it the SIGCONT signal 
             kill(childPid, SIGCONT); // TODO: error -1
             // req: print following to stderr: 
-            fprintf(stderr, "Child process %d stopped. Continuing.\n", childPid); // TODO: (intmax_t) childPid?
+            if (debug == 1) fprintf(stderr, "Child process %d stopped. Continuing.\n", childPid); // TODO: (intmax_t) childPid?
             // req: "$!"/bg shall be updated to the pid of the child process as if had been a bg command 
             most_rec_bg_pid = childPid; 
             // req: Smallsh shall no longer perform a block wait on this process, 
@@ -459,10 +465,10 @@ int parse_words(char *word_arr[], int word_arr_len){
 
 // 2. WORD SPLITTING  
 int split_words(char *line, ssize_t line_length){
-
-  char *word_arr[line_length]; // req: pointers to strings, min 512 supported
-  //char delim[] = {getenv("IFS") || " \t\n"};
-  char delim[] = " ";
+  if (debug == 1) printf("%lu", line_length); 
+  char *word_arr[512]; // req: pointers to strings, min 512 supported
+  char delim[] = {getenv("IFS") || " \t\n"};
+  //char delim[] = " ";
   
   int n = 0;
 
@@ -494,7 +500,7 @@ int main(){
   char *line = NULL;
   size_t n = 0;
   pid_t pid = getpid();
-  printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
+  if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
 
   // req: Check for any un-waited-for background processes in same pid 
     // group as smallsh and print following message 
