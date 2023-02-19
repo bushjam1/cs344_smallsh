@@ -77,20 +77,54 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 
-//int open_file_smallsh(const char *filename, const int mode){
+//int open_file_smallsh(const char *file_path, const int mode){
+  int file_descriptor;
+  ssize_t nread, nwritten;
+  char read_buffer[32]; 
+  // what's the input to the file? 
+  
 
-  // mode 0 = read, mode 1 = write, mode 2 = append 
-  //  
+  // mode 0 = infile, mode 1 = outfile
+  
   // req: "If a filename was specified as the operand to the input (“<”) 
   // redirection operator, the specified file shall be opened for 
   // reading on stdin. It shall be an error if the file cannot be 
   // opened for reading or does not already exist."
-  //
+  if (mode == 0){
+    printf(""); 
+  }
   // req: "If a filename was specified as the operand to the output (“>”) 
   // redirection operator, the specified file shall be opened for 
   // writing on stdout. If the file does not exist, it shall be 
   // created with permissions 0777. It shall be an error if the 
   // file cannot be opened (or created) for writing."
+  if (mode == 1){
+	
+	
+    // Open the file using the open system call
+    // The flag O_RDWR means the file should be opened for reading and writing
+    // The flag O_CREAT means that if the file doesn't exist, open should create it
+    // The flag O_TRUNC means that if the file already exits, open should truncate it.
+	  file_descriptor = open(newFilePath, O_RDWR | O_CREAT | O_TRUNC, 00600);
+	  if (file_descriptor == -1){
+		  printf("open() failed on \"%s\"\n", newFilePath);
+		  perror("In main()");
+		  exit(1);
+	  }
+	
+    // Write to the file using the write system call
+	  nwritten = write(file_descriptor, giveEm, strlen(giveEm) * sizeof(char));
+    // Clear out the array before using it
+	  memset(readBuffer, '\0', sizeof(readBuffer)); 
+    // Reset the file pointer to the beginning of the file
+	  lseek(file_descriptor, 0, SEEK_SET); 
+    // Read from the file using the read system call
+	  nread = read(file_descriptor, readBuffer, sizeof(readBuffer));
+	  printf("nread = %zd, nwritten = %zd\n", nread, nwritten);
+	
+	  printf("File contents:\n%s", readBuffer);
+
+    }
 
   //return 0; 
 
@@ -244,6 +278,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
       // Child process will execute this branch
       case 0: 
+        // Req: 
         // Perform all redirection inside the child process (after calling fork), 
         // so that you don’t change the parent process’s file descriptors. 
         // Keep in mind, open() will assign to the lowest available file descriptor, 
@@ -252,13 +287,29 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
         // See dup2(2) for more information about how to associate a specific open 
         // file with a specific file descriptor, in a more general sense. 
         // Either approach should be sufficient.
-        //
+
         // Don’t forget the mode argument to open() when using the O_CREAT flag! Very common mistake.
 
         // file redirection 
-        // if there is an infile 
-        //
-        // if there is an outfile 
+        // INFILE
+        // req: If a filename was specified as the operand to the input (“<”) redirection operator, 
+        // the specified file shall be opened for reading on stdin. It shall be an error if the 
+        // file cannot be opened for reading or does not already exist.
+        //if (infile){
+            //int open(const char *pathname, int flags, mode_t mode);
+        //};
+
+
+        // OUTFILE 
+        // req: If a filename was specified as the operand to the output (“>”) redirection operator, 
+        // the specified file shall be opened for writing on stdout. If the file does not exist, 
+        // it shall be created with permissions 0777. It shall be an error if the file cannot be 
+        // opened (or created) for writing. 
+        if (outfile){
+          int file_descriptor;
+          char *newFilePath = outfile;
+
+        }
 
         //most_rec_bg_pid = childPid;
 		    if (debug == 1) printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
