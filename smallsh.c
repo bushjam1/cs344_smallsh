@@ -170,12 +170,16 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
   // req: print "\nexit\n" to stderr
   fprintf(stderr, "\nexit\n");
   // all child processes sent SIGINT prior to exit (see KILL(2))
-  kill(0, SIGINT); // int kill(pid_t pid, int sig); pid=0 sends to group
+  if (debug == 1) printf("this a\n");
 
+  //kill(0, SIGINT); // int kill(pid_t pid, int sig); pid=0 sends to group
+
+  if (debug == 1) printf("this b\n"); 
 
   // req: takes 1 argument. If not provided, it is implied to be
   // expansion of “$?”, the exit status of the last foreground command.
   if (token_arr_len == 2 && token_arr[1] == NULL){
+    if (debug == 1) printf("A:\n"); 
     exit(last_fg_exit_status); 
   } 
 
@@ -194,6 +198,7 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
       return 1;
     
     }
+    if (debug == 1) printf("exit arg is %i\n",(int) exit_arg); 
     exit(exit_arg); 
   }
   return 0;
@@ -261,7 +266,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-        print_arr(token_arr, token_arr_len); 
+        print_arr(token_arr, token_arr_len); // DEBUG test script  
 		    exit(1); // TODO error good? TODO use own process to exit? 
 		    break;
 
@@ -465,9 +470,17 @@ int parse_words(char *word_arr[], int word_arr_len){
 
 // 2. WORD SPLITTING  
 int split_words(char *line, ssize_t line_length){
-  if (debug == 1) printf("%lu", line_length); 
-  char *word_arr[512]; // req: pointers to strings, min 512 supported
-  char delim[] = {getenv("IFS") || " \t\n"};
+
+  char *word_arr[line_length]; // req: pointers to strings, min 512 supported
+  char delim_alt[] = " \t\n";
+  const char *delim = getenv("IFS");  // pointer or null   
+  if (delim == NULL) delim = delim_alt; 
+  //fprintf(stderr, "%s",(env_p ? env_p : ""));
+  
+  //char *delim[] = getenv("IFS");//{getenv("IFS") || " \t\n"};
+  //if (delim == NULL)strcpy(delim, "hehe"); //" \t\n");
+  //printf("delim is %s\n",delim); 
+  //exit(1); 
   //char delim[] = " ";
   
   int n = 0;
@@ -500,7 +513,8 @@ int main(){
   char *line = NULL;
   size_t n = 0;
   pid_t pid = getpid();
-  if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
+  if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid);
+
 
   // req: Check for any un-waited-for background processes in same pid 
     // group as smallsh and print following message 
