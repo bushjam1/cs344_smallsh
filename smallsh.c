@@ -20,7 +20,9 @@
 // $? set to a non-zero-value. Further processing of the command line stops and return to step 1 / input. 
  
 // PRIOR TO TEST
-// Set the IFS expansion to " \t\n", etc. 
+// Set the IFS expansion to " \t\n", etc.
+//
+//
 
 
 // GLOBALS   
@@ -74,6 +76,7 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 
+
 // BUILT-IN CD
 // REQ: The cd built-in takes one argument. If not provided, 
 //      the argument is implied to be the expansion of “~/”, 
@@ -100,48 +103,108 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   //return 0; 
 
 // BUILT-IN CD
-int cd_smallsh(const char *newWd){
-  int cwd_size = PATH_MAX; 
-  char cwd[cwd_size]; // TODO: good size?
-  getcwd(cwd, PATH_MAX);
-  if (debug == 1) printf("Current working directory (before cd): %s\n", cwd);
+int cd_smallsh(char *token_arr[], int token_arr_len){
+  // req: takes one argument.
+  if (token_arr_len < 2) {
+    fprintf(stderr, "cd_smallsh(): too few arguments\n"); // NOTE: Likely imppossible
+    return -1; 
+  }
+  if (token_arr_len > 3) {
+    fprintf(stderr, "cd_smallsh(): too many arguments\n"); 
+    return -1; 
+  }
+
+   //char *newWd[PATH_MAX];
+   char newWd[PATH_MAX]; 
+  
+  // req: If not provided, the argument is implied to be the expansion of “~/”
+  if (token_arr_len == 2 && token_arr[1] == NULL){
+    char *homeStr = getenv("HOME"); // pointer or null 
+    if (!homeStr) {homeStr = "";}
+    strcpy(newWd, homeStr); 
+  } 
+  // Otherwise, first argument is token_arr[1]
+  else {
+    strcpy(newWd, token_arr[1]); 
+  }
+
+  if (debug == 1) {
+   int cwd_size = PATH_MAX; 
+   char cwd[cwd_size]; // TODO: good size?
+   getcwd(cwd, PATH_MAX);
+   printf("\ncd_smallsh(): working directory (before cd): %s\n", cwd);
+  }
+
 
   // attempt cd, print error if error - chdir(2)
   errno = 0; 
   if (chdir(newWd) != 0){ 
-    perror("chdir() failed\n"); // TODO: Improve this error checking?  
-    printf("%i",errno); 
+    perror("chdir() failed"); // TODO: Improve this error checking?  
+    //printf("%i",errno); 
+    // reset errno etc?? 
     return -1;
   };
-  // show cwd after cd 
-  getcwd(cwd, cwd_size);
-  if (debug == 1) printf("Working directory (after cd): %s\n", cwd);
-
+  //show cwd after cd 
+  
+ 
+  if (debug == 1) {
+   int cwd_size = PATH_MAX; 
+   char cwd[cwd_size]; // TODO: good size?
+   getcwd(cwd, PATH_MAX);
+   printf("cd_smallsh(): working directory (after cd): %s\n", cwd);
+  }
   // success return 
   return 0;
 }
 
 
 // BUILT-IN EXIT
-void exit_smallsh(int fg_exit_status){
-  //  NOTES: 
-  //  when process successful exit == 0
-  //  error condition == non-0 
-  //  KILL(2) - If  pid  equals  0,  then  sig is sent to every process 
-  //  in the process group of the calling process
-  //  All child processes in the same process group 
-  //  shall be sent a SIGINT signal before exiting 
-  //  see p. 405 in LPI for e.g.
-  
-  // print exit to stderr
+int exit_smallsh(char *token_arr[], int token_arr_len){
+
+  // NOTE:  see p. 405 in LPI 
+
+  // req: takes one argument.
+  if (token_arr_len < 2) {
+    fprintf(stderr, "exit_smallsh(): too few arguments\n"); // NOTE: Likely imppossible
+    return -1; 
+  }
+  if (token_arr_len > 3) {
+    fprintf(stderr, "exit_smallsh(): too many arguments\n"); 
+    return -1; 
+  }
+
+  // no error -- exit will happen 
+ 
+  // req: print "\nexit\n" to stderr
   fprintf(stderr, "\nexit\n");
-
   // all child processes sent SIGINT prior to exit (see KILL(2))
-  // int kill(pid_t pid, int sig); 
-  kill(0, SIGINT);
+  kill(0, SIGINT); // int kill(pid_t pid, int sig); pid=0 sends to group
 
-  //  exit immediately EXIT(3)
-  exit(fg_exit_status); // NOTE: status & 0377 returned to the parent 
+
+  // req: takes 1 argument. If not provided, it is implied to be
+  // expansion of “$?”, the exit status of the last foreground command.
+  if (token_arr_len == 2 && token_arr[1] == NULL){
+    exit(last_fg_exit_status); 
+  } 
+
+  // Otherwise, exactly one argument provided, first argument is token_arr[1]  
+  if (token_arr_len == 3 && token_arr[2] == NULL){
+    char *endptr;
+    errno = 0; 
+    long exit_arg = strtol(token_arr[1], &endptr, 10);
+    // req: ..or if an argument is provided that is not an integer.
+    if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
+      perror("exit_smallsh(): strtol()");
+      return 1;
+    }
+    else if (endptr == token_arr[1]){
+      fprintf(stderr, "exit_smallsh(): No digits were found in argument.\n"); 
+      return 1;
+    
+    }
+    exit(exit_arg); 
+  }
+  return 0;
 }
 
 
@@ -149,69 +212,30 @@ void exit_smallsh(int fg_exit_status){
 int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
     // printf("Parent pid: %d\n", getpid());
-    //
-    printf("Token arr len is %i\n", token_arr_len); 
-    print_arr(token_arr, token_arr_len); 
+    if (run_bg || infile || outfile) printf(" "); 
+   
 
-    if (run_bg || infile || outfile) printf("yay\n"); 
-    //exit(0); 
     // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
 
     // built-in cd 
     if (strcmp(token_arr[0],"cd") == 0){
-      cd_smallsh(token_arr[1]); // TODO check error conditions 
+      cd_smallsh(token_arr, token_arr_len); // TODO check error conditions 
       return 0;
     } 
-    
-   
-    // built-in exit
-    if (strcmp(token_arr[0], "exit") == 0){
-      // req: takes 1 argument. If not provided, it is implied to be
-      // expansion of “$?”, the exit status of the last foreground command.
-      if (token_arr_len == 2 && token_arr[1] == NULL){
-        printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
-        exit_smallsh(last_fg_exit_status);
-      }
+    // built-in exit 
+    if (strcmp(token_arr[0],"exit") == 0){
+      exit_smallsh(token_arr, token_arr_len);
+      return 0; 
     }
-      exit(0); 
-//      // req: It shall be an error if more than one argument is provided... 
-//      // WORKS 
-//      if (word_arr_len > 2) {
-//        fprintf(stderr, "Too many arguments for exit_smallsh()\n");
-//        return 1;
-//      }
-//      // exactly one argument provided 
-//      else{
-//       char *endptr;
-//        errno = 0; 
-//        long exit_arg = strtol(word_arr[1], &endptr, 10);
-//        // req: ..or if an argument is provided that is not an integer.
-//        if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
-//          perror("strtol");
-//          return 1;
-//        }
-//        else if (endptr == word_arr[1]){
-//          fprintf(stderr, "No digits were found exit_smallsh()\n"); 
-//          return 1;
-//        }
-//        exit_smallsh(exit_arg);
-//      }
-//    }
-    //
-    //
-    //
-   
-    // infile / outfile 
-    printf("infile: %s outfile: %s\n", infile, outfile);
-
-    //char *words[] = {"echo", "123", "456", NULL};
     
+    // OTHEWISE FG/BG COMMAND 
 
     int childStatus;
 
-    // Fork a new process - if successful value of childPid is 0 in child, child's pid in parent 
+    // Fork a new process...if successful, childPid=0 in child, child's pid in parent 
     pid_t childPid = fork();
-    printf("->child pid %jd\n",(intmax_t) childPid); 
+
+    if (debug == 1) printf("->child pid %jd\n",(intmax_t) childPid); 
 
     switch(childPid){
 
@@ -227,14 +251,16 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
         // so that you don’t change the parent process’s file descriptors."
 
         //most_rec_bg_pid = childPid;
-		    printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
+		    if (debug == 1) printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
-        for (int i = 0; i < 2; i++) {printf("token_arr[%i] %s\n", i, token_arr[i]);}
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-		    exit(2); // TODO error good? 
+		    exit(1); // TODO error good? TODO use own process to exit? 
 		    break;
+
+
+      // NOTE: LPI pp. ~548 helpful on waiting 
 
       // Parent process - childPid is pid of the child, parent will execute below 
       default: 
@@ -304,23 +330,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
               printf("bg child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
               // anything specific? 
             } 
-
-          // LEFT OFF 230216:1600
-          // LPI pp. ~548 helpful on waiting 
-          //
-          //             SIGNAL HANDLING 
-          //             The SIGTSTP signal shall be ignored by smallsh.
-          //             The SIGINT signal shall be ignored (SIG_IGN) at 
-          //             all times except when reading a line of input in Step 1, 
-          //             during which time it shall be registered to a signal handler 
-          //             which does nothing.
-          //             Explanation:
-          //             SIGTSTP (CTRL-Z) normally causes a process to halt, 
-          //             which is undesirable. The smallsh process should not 
-          //             respond to this signal, so it sets its disposition to SIG_IGN.
-          //             The SIGINT (CTRL-C) signal normally causes a process to exit 
-          //             immediately, which is not desired.
-          
         } // while 
         } // else 
         // parent waiting done once child exited 
@@ -430,52 +439,11 @@ int parse_words(char *word_arr[], int word_arr_len){
 
   // req: If at this point no command word is present, 
   // smallsh shall silently return to step 1 and print a new prompt message.
-  if (word_arr_len == 0 || word_arr[0] == NULL || strcmp(word_arr[0], "") == 0) return 0;
+  if (word_arr_len == 0 || word_arr[0] == NULL || strcmp(word_arr[0], "") == 0) return 0; // -1? 
   //else {printf("There are commands:\n"); print_arr(word_arr, word_arr_len);}
   //exit(0);
   
-  
-  
-
-  // execute built-ins
-  // built-in cd 
-//  if (strcmp(word_arr[0],"cd") == 0){
-//    cd_smallsh(word_arr[1]); // TODO check error conditions 
-//    return 0;
-//  } 
-//
-//  // built-in exit
-//  if (strcmp(word_arr[0], "exit") == 0){
-//    // req: takes 1 argument. If not provided, it is implied to be
-//    // expansion of “$?”, the exit status of the last foreground command.
-//    if (word_arr_len == 1){
-//      printf("Exiting passing: %d as argument\n",last_fg_exit_status); 
-//      exit_smallsh(last_fg_exit_status);
-//    }
-//    // req: It shall be an error if more than one argument is provided... 
-//    // WORKS 
-//    if (word_arr_len > 2) {
-//      fprintf(stderr, "Too many arguments for exit_smallsh()\n");
-//      return 1;
-//    }
-//    // exactly one argument provided 
-//    else{
-//      char *endptr;
-//      errno = 0; 
-//      long exit_arg = strtol(word_arr[1], &endptr, 10);
-//      // req: ..or if an argument is provided that is not an integer.
-//      if ((errno == ERANGE && (exit_arg == LONG_MAX || exit_arg == LONG_MIN)) || (errno != 0 && exit_arg == 0)) {
-//        perror("strtol");
-//        return 1;
-//      }
-//      else if (endptr == word_arr[1]){
-//        fprintf(stderr, "No digits were found exit_smallsh()\n"); 
-//        return 1;
-//      }
-//      exit_smallsh(exit_arg);
-//    }
-//  }
-  
+    
   // execute command list  
   execute_commands(word_arr, word_arr_len, run_bg, infile, outfile); 
 
@@ -510,11 +478,9 @@ int split_words(char *line, ssize_t line_length){
     token = strtok(NULL, delim);
   }
   word_arr[n] = NULL; 
-  // TODO need null termination at end of word_arr??? 
-  // https://discord.com/channels/1061573748496547911/1061579120317837342/1074827823832907776
 
   // parse the command word array 
-  // TODO consider move to main()
+  // TODO consider moving this call to main()
   parse_words(word_arr, n+1);
 
   return 0;
@@ -530,12 +496,7 @@ int main(){
   pid_t pid = getpid();
   printf("smallsh PID: (%jd)\n", (intmax_t) pid); 
 
-  // FOR dev purposes - remove
-
-
-  for (;;) {
-
-    // req: Check for any un-waited-for background processes in same pid 
+  // req: Check for any un-waited-for background processes in same pid 
     // group as smallsh and print following message 
     // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
     // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
@@ -545,8 +506,24 @@ int main(){
     // Display prompt from PS1	
     // REQ/TODO: If reading interrupted by signal (see sig handling) a newline is printed, then 
     // a new command prompt shall be printed (including checking for background processes) and 
-    // reading input shall resume. See CLEARERR(3) and reset errno. 
+    // reading input shall resume. See CLEARERR(3) and reset errno.
 
+
+    // LPI pp. ~548 helpful on waiting 
+    //    SIGNAL HANDLING 
+    //    The SIGTSTP signal shall be ignored by smallsh.
+    //    The SIGINT signal shall be ignored (SIG_IGN) at 
+    //    all times except when reading a line of input in Step 1, 
+    //    during which time it shall be registered to a signal handler 
+    //    which does nothing.
+    //    Explanation:
+    //    SIGTSTP (CTRL-Z) normally causes a process to halt, 
+    //    which is undesirable. The smallsh process should not 
+    //    respond to this signal, so it sets its disposition to SIG_IGN.
+    //    The SIGINT (CTRL-C) signal normally causes a process to exit 
+    //    immediately, which is not desired.
+
+  for (;;) {
     // req: print a prompt to stderr by expanding the PS1 
     const char *env_p = getenv("PS1");  // pointer or null   
     fprintf(stderr, "%s",(env_p ? env_p : ""));
@@ -558,7 +535,7 @@ int main(){
       // TODO req: if reading interrupted by signal (signal handling) 
       //   then newline printed, check for background processes, new prompt, read resume 
       //   see clearerr(3) and reset errno 
-      exit_smallsh(last_fg_exit_status);  
+      exit(last_fg_exit_status);  
     }
     // handle error 
     if (line_length == -1){
