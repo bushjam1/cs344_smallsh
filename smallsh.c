@@ -294,6 +294,8 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
     // Fork a new process...if successful, childPid=0 in child, child's pid in parent 
     pid_t childPid = fork();
+    if (run_bg == 1){most_rec_bg_pid = childPid;}; // NEW
+
 
     if (debug == 1) printf("->child pid %jd\n",(intmax_t) childPid); 
 
@@ -395,6 +397,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
         if (run_bg == 0){ 
 
           childPid = waitpid(0, &childStatus, 0); // TODO error for waitpid
+          //most_rec_bg_pid = getpid(); 
 
           // check error
           if (childPid == -1){fprintf(stderr, "waitpid() failed\n"); exit(1); } // TODO error good? 
@@ -429,7 +432,9 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
         // NOTE: Background? record $!. Then check change of any processes before prompt.
         else if (run_bg == 1){
-          BACKGROUND: 
+          BACKGROUND:
+          //printf("RUNNING BG PID %jd\n", (intmax_t) childPid);
+         
             // req: child process runs in "background", and parent smallsh process does not wait
             while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { 
             //  req: background is the default behavior of a forked process! TODO - what does this mean? 
@@ -688,6 +693,7 @@ int main(){
     int childStatus;
 
     while ((childPid =  waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0){
+           // printf("PRE PROMPT CHECK childPid: %jd childStatus: %i\n", (intmax_t) childPid, childStatus); 
             //most_rec_bg_pid = childPid;  
             //printf("CHILDPID: %jd", (intmax_t) childPid); 
             // waitpid() error
