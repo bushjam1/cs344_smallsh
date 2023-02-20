@@ -270,7 +270,9 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
 int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
     // printf("Parent pid: %d\n", getpid());
-    if (run_bg || infile || outfile) printf(" "); 
+    if (run_bg || infile || outfile) printf("---\n");  
+    
+
    
 
     // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
@@ -317,28 +319,12 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
         // Don’t forget the mode argument to open() when using the O_CREAT flag! Very common mistake.
 
-        // file redirection 
-        // INFILE
-        // req: If a filename was specified as the operand to the input (“<”) redirection operator, 
-        // the specified file shall be opened for reading on stdin. It shall be an error if the 
-        // file cannot be opened for reading or does not already exist.
-        //if (infile){
-            //int open(const char *pathname, int flags, mode_t mode);
-        //};
-
-
-        // OUTFILE 
-        // req: If a filename was specified as the operand to the output (“>”) redirection operator, 
-        // the specified file shall be opened for writing on stdout. If the file does not exist, 
-        // it shall be created with permissions 0777. It shall be an error if the file cannot be 
-        // opened (or created) for writing. 
         if (infile){
         	// INFILE - Open source file
           // req: "If a filename was specified as the operand to the input (“<”) 
           // redirection operator, the specified file shall be opened for 
           // reading on stdin. It shall be an error if the file cannot be 
           // opened for reading or does not already exist." 
-            printf("infile a\n"); 
 	          int sourceFD = open(infile, O_RDONLY);
 	          if (sourceFD == -1) { 
 		          perror("source open()"); 
@@ -354,9 +340,14 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		          perror("source dup2()"); 
 		          exit(2); 
 	          }
-            printf("dup success");
           //exit(1);
         }
+
+        // OUTFILE 
+        // req: If a filename was specified as the operand to the output (“>”) redirection operator, 
+        // the specified file shall be opened for writing on stdout. If the file does not exist, 
+        // it shall be created with permissions 0777. It shall be an error if the file cannot be 
+        // opened (or created) for writing. 
 
         //most_rec_bg_pid = childPid;
 		    if (debug == 1) printf("child (%jd) running command -- most_rec_bg_pid %jd \n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
