@@ -38,6 +38,8 @@ pid_t most_rec_bg_pid; // NULL by default
 int debug = 0;
 
 
+
+
 // print a string pointer array out with null values
 void print_arr(char *arr[], int size){
   for (int i = 0; i < size; i++){
@@ -387,6 +389,9 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
       default: 
             
         // Foreground - '&' operator not present -> blocking wait 
+        // req: If a non-built-in command was executed, and the “&” operator was not present, 
+        // the smallsh parent process shall perform a blocking wait (see WAITPID(2)) 
+        // on the foreground child process.   
         if (run_bg == 0){ 
 
           childPid = waitpid(0, &childStatus, 0); // TODO error for waitpid
@@ -411,31 +416,32 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
             // req: send it the SIGCONT signal 
             kill(childPid, SIGCONT); // TODO: error -1
             // req: print following to stderr: 
-            if (debug == 1) fprintf(stderr, "Child process %d stopped. Continuing.\n", childPid); // TODO: (intmax_t) childPid?
+            fprintf(stderr, "Child process %d stopped. Continuing.\n", childPid); // TODO: (intmax_t) childPid?
             // req: "$!"/bg shall be updated to the pid of the child process as if had been a bg command 
             most_rec_bg_pid = childPid; 
             // req: Smallsh shall no longer perform a block wait on this process, 
             // and it will continue to run in the background
-            goto BACKGROUND; // TODO - ideal?
+            goto BACKGROUND; 
           }
         }
 
         // background / non-blocking wait + poll
+
         // NOTE: Background? record $!. Then check change of any processes before prompt.
         else if (run_bg == 1){
           BACKGROUND: 
             // req: child process runs in "background", and parent smallsh process does not wait
-            while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { // 0 versus WUNTRACED | WNOHANG) for blocking/non
-            //  req: background is the default behavior of a forked process! 
+            while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { 
+            //  req: background is the default behavior of a forked process! TODO - what does this mean? 
             //  req: The "$!" value should be set to the pid of such a process.
-           // most_rec_bg_pid = childPid;  
+            most_rec_bg_pid = childPid;  
 
-            // check at each iteration if
-            // print value of waitpid 
-            fprintf(stderr, "waitpid() returned PID=%jd childstatus=%d", (intmax_t) childPid, childStatus); 
-        
             // waitpid() error
-            if (childPid == -1){fprintf(stderr,"waitpid() failed\n"); exit(1); } // TODO error good? 
+            if (childPid == -1){
+              fprintf(stderr,"waitpid() failed\n"); 
+              exit(1); 
+            } // TODO error good? 
+            
             // 1) finished - WIFEXITED
             if(WIFEXITED(childStatus)){
               printf("bg child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
@@ -443,8 +449,9 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
             }
             // 2) stopped - WIFSTOPPED
             if(WIFSTOPPED(childStatus)){
-              printf("bg child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
+              //printf("bg child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
               // anything specific? 
+              // req: 
             }
             // 3) signaled - WIFSIGNALED
             if(WIFSIGNALED(childStatus)){
@@ -674,6 +681,53 @@ int main(){
     //    immediately, which is not desired.
 
   for (;;) {
+    // Before printing a prompt message, smallsh shall check for any un-waited-for background processes 
+    // in the same process group ID as smallsh, and print the following informative message to stderr 
+    // for each:
+    pid_t childPid; 
+    int childStatus;
+
+    while ((childPid =  waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0){
+            //most_rec_bg_pid = childPid;  
+            //printf("CHILDPID: %jd", (intmax_t) childPid); 
+            // waitpid() error
+            if (childPid == -1){
+              fprintf(stderr,"waitpid() failed\n"); 
+              exit(1); 
+            } // TODO error good? 
+            
+            // 1) finished - WIFEXITED
+            if(WIFEXITED(childStatus)){
+              fprintf(stderr, "Child process %jd done. Exit status %d.\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+              // anything specific? 
+            }
+            // 2) stopped - WIFSTOPPED
+            if(WIFSTOPPED(childStatus)){
+              fprintf(stderr, "Child process %jd stopped. Continuing.\n", (intmax_t) childPid); //WSTOPSIG(childStatus));
+              kill(childPid, SIGCONT); 
+              // anything specific? 
+              // req: 
+            }
+            // 3) signaled - WIFSIGNALED
+            if(WIFSIGNALED(childStatus)){
+              fprintf(stderr, "Child process %jd done. Signaled %d.\n", (intmax_t) childPid, WTERMSIG(childStatus));
+              // anything specific? 
+            } 
+
+    }
+
+    // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
+   
+    // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
+    
+    // If a child process is stopped, smallsh shall send it the SIGCONT signal and print 
+    // the following message to stderr: 
+    // “Child process %d stopped. Continuing.\n”, <pid> (See KILL(2))
+    
+    // LEFT OFF HERE 230220 - TRYING TO FIGURE THIS PRE-PROMPT BG PROCESS CHECK 
+    // SIGNALS, AND WHY SLEEPING PROCESS ID CAN'T BE FOUND IN THE TEST SCRIPT 
+
+
     // req: print a prompt to stderr by expanding the PS1 
     const char *env_p = getenv("PS1");  // pointer or null   
     fprintf(stderr, "%s",(env_p ? env_p : ""));
@@ -706,6 +760,7 @@ int main(){
   // 230210 - still has one block unfreed at end
   // I think that the quit needs to free before exiting
   free(line);
+  printf("EXITING %jd", (intmax_t) pid); 
   exit(EXIT_SUCCESS);
 }
 
