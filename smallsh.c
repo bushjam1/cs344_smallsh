@@ -333,15 +333,38 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 	          // Debug - Written to terminal
 	          //printf("sourceFD == %d\n", sourceFD); 
 
-	          // Redirect stdin to source file
+	          // Redirect stdin to source filehe
             // dup2(<old fd>, <new fd>) 0=stdin, 1=stdout, 2=strerr; newfd points to oldfd
 	          int result = dup2(sourceFD, 0);
-	          if (result == -1) { 
+	          if (result == -1) {   
 		          perror("source dup2()"); 
 		          exit(2); 
 	          }
           //exit(1);
         }
+        if (outfile){
+	        int targetFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	        if (targetFD == -1) { 
+		      perror("target open()"); 
+		      exit(1); 
+	      }
+	      printf("targetFD == %d\n", targetFD); // Written to terminal
+  
+	      // Redirect stdout to target file
+	      int result = dup2(targetFD, 1);
+	      if (result == -1) { 
+		      perror("target dup2()"); 
+		      exit(2); 
+	      }
+        // LEFT OFF HERE 230219 - looks like outfile is working - remember to tweak file permissions etc. 
+	      // Run the sort program using execlp.
+	      // The stdin and stdout are pointing to files
+	      //execlp("sort", "sort", NULL);
+	      //return(0);
+      }
+
+
+        
 
         // OUTFILE 
         // req: If a filename was specified as the operand to the output (“>”) redirection operator, 
