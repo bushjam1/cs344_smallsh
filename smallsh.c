@@ -10,6 +10,9 @@
 #include <sys/types.h> // pid_t
 #include <sys/wait.h> // wait
 #include <limits.h> // PATH_MAX
+#include <fcntl.h> // open()
+#include <sys/stat.h> // fstat()
+                      //
 
 
 // NOTES/TODO:
@@ -76,59 +79,83 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
+//------------------------------------------------------- 
+// OPEN FILE
+//-------------------------------------------------------
+int open_smallsh(const char *file_path, const int mode){
 
-//int open_file_smallsh(const char *file_path, const int mode){
-  int file_descriptor;
-  ssize_t nread, nwritten;
-  char read_buffer[32]; 
-  // what's the input to the file? 
-  
-
+ 
   // mode 0 = infile, mode 1 = outfile
-  
+
+	// INFILE - Open source file
   // req: "If a filename was specified as the operand to the input (“<”) 
   // redirection operator, the specified file shall be opened for 
   // reading on stdin. It shall be an error if the file cannot be 
-  // opened for reading or does not already exist."
-  if (mode == 0){
-    printf(""); 
+  // opened for reading or does not already exist." 
+  if (mode == 0) {
+    printf("infile a\n"); 
+	  int sourceFD = open(file_path, O_RDONLY);
+	  if (sourceFD == -1) { 
+		  perror("source open()"); 
+		  exit(1); 
+	  }
+	  // Debug - Written to terminal
+	  //printf("sourceFD == %d\n", sourceFD); 
+
+	  // Redirect stdin to source file
+    // dup2(<old fd>, <new fd>) 0=stdin, 1=stdout, 2=strerr; newfd points to oldfd
+	  int result = dup2(sourceFD, 0);
+	  if (result == -1) { 
+		  perror("source dup2()"); 
+		  exit(2); 
+	  }
+    printf("dup success"); 
+    return result; 
+    //exit(1);
   }
+
+  // OUTFILE - Open/write to target file
   // req: "If a filename was specified as the operand to the output (“>”) 
   // redirection operator, the specified file shall be opened for 
   // writing on stdout. If the file does not exist, it shall be 
   // created with permissions 0777. It shall be an error if the 
   // file cannot be opened (or created) for writing."
-  if (mode == 1){
-	
-	
-    // Open the file using the open system call
-    // The flag O_RDWR means the file should be opened for reading and writing
-    // The flag O_CREAT means that if the file doesn't exist, open should create it
-    // The flag O_TRUNC means that if the file already exits, open should truncate it.
-	  file_descriptor = open(newFilePath, O_RDWR | O_CREAT | O_TRUNC, 00600);
-	  if (file_descriptor == -1){
-		  printf("open() failed on \"%s\"\n", newFilePath);
-		  perror("In main()");
-		  exit(1);
+	if (mode == 1) {
+  
+	  int targetFD = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	  if (targetFD == -1) { 
+		  perror("target open()"); 
+		  exit(1); 
 	  }
-	
-    // Write to the file using the write system call
-	  nwritten = write(file_descriptor, giveEm, strlen(giveEm) * sizeof(char));
-    // Clear out the array before using it
-	  memset(readBuffer, '\0', sizeof(readBuffer)); 
-    // Reset the file pointer to the beginning of the file
-	  lseek(file_descriptor, 0, SEEK_SET); 
-    // Read from the file using the read system call
-	  nread = read(file_descriptor, readBuffer, sizeof(readBuffer));
-	  printf("nread = %zd, nwritten = %zd\n", nread, nwritten);
-	
-	  printf("File contents:\n%s", readBuffer);
+	  printf("targetFD == %d\n", targetFD); // Written to terminal
+  
+	  // Redirect stdout to target file
+	  int result = dup2(targetFD, 1);
+	  if (result == -1) { 
+		  perror("target dup2()"); 
+		  exit(2); 
+	  }
+	  // Run the sort program using execlp.
+	  // The stdin and stdout are pointing to files
+	  execlp("sort", "sort", NULL);
+	  return(0);
+  }
+  
 
-    }
 
+  return 0; 
+
+  // Open the file using the open system call
+  // The flag O_RDWR means the file should be opened for reading and writing
+  // The flag O_CREAT means that if the file doesn't exist, open should create it
+  // The flag O_TRUNC means that if the file already exits, open should truncate it.
+  
+  
   //return 0; 
-
+  }
+//------------------------------------------------------- 
 // BUILT-IN CD
+//-------------------------------------------------------
 int cd_smallsh(char *token_arr[], int token_arr_len){
   // req: takes one argument.
   if (token_arr_len < 2) {
@@ -305,10 +332,30 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
         // the specified file shall be opened for writing on stdout. If the file does not exist, 
         // it shall be created with permissions 0777. It shall be an error if the file cannot be 
         // opened (or created) for writing. 
-        if (outfile){
-          int file_descriptor;
-          char *newFilePath = outfile;
+        if (infile){
+        	// INFILE - Open source file
+          // req: "If a filename was specified as the operand to the input (“<”) 
+          // redirection operator, the specified file shall be opened for 
+          // reading on stdin. It shall be an error if the file cannot be 
+          // opened for reading or does not already exist." 
+            printf("infile a\n"); 
+	          int sourceFD = open(infile, O_RDONLY);
+	          if (sourceFD == -1) { 
+		          perror("source open()"); 
+		          exit(1); 
+	          }
+	          // Debug - Written to terminal
+	          //printf("sourceFD == %d\n", sourceFD); 
 
+	          // Redirect stdin to source file
+            // dup2(<old fd>, <new fd>) 0=stdin, 1=stdout, 2=strerr; newfd points to oldfd
+	          int result = dup2(sourceFD, 0);
+	          if (result == -1) { 
+		          perror("source dup2()"); 
+		          exit(2); 
+	          }
+            printf("dup success");
+          //exit(1);
         }
 
         //most_rec_bg_pid = childPid;
@@ -524,7 +571,7 @@ int split_words(char *line, ssize_t line_length){
 
   char *word_arr[line_length]; // req: pointers to strings, min 512 supported
   char delim_alt[] = " \t\n";
-  const char *delim = getenv("IFS");  // pointer or null   
+  char *delim = getenv("IFS");  // pointer or null   
   if (delim == NULL) delim = delim_alt; 
   //fprintf(stderr, "%s",(env_p ? env_p : ""));
   
