@@ -270,7 +270,7 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
 int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
     // printf("Parent pid: %d\n", getpid());
-    if (run_bg || infile || outfile) printf("---\n");  
+    //if (run_bg || infile || outfile) printf("---\n");  
     
 
    
@@ -348,7 +348,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		      perror("target open()"); 
 		      exit(1); 
 	      }
-	      printf("targetFD == %d\n", targetFD); // Written to terminal
+	      //printf("targetFD == %d\n", targetFD); // Written to terminal
   
 	      // Redirect stdout to target file
 	      int result = dup2(targetFD, 1);
