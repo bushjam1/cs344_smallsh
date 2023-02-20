@@ -273,8 +273,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
     //if (run_bg || infile || outfile) printf("---\n");  
     
 
-   
-
     // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
 
     // built-in cd 
@@ -343,7 +341,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
           //exit(1);
         }
         if (outfile){
-	        int targetFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	        int targetFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 	        if (targetFD == -1) { 
 		      perror("target open()"); 
 		      exit(1); 
@@ -471,13 +469,13 @@ char *expand_word(char *restrict *restrict word){
     if (!homeStr) {homeStr = "";}
     str_gsub(word, "~", homeStr);
   }
-
+  
   // req: "$$" replaced with smallsh pid 
   char pidStr[12];
   pid_t pid = getpid(); // guaranteed  
   sprintf(pidStr, "%jd", (intmax_t) pid); 
   str_gsub(word, "$$", pidStr);
-    
+ 
   // req: "$?" replaced with EXIT STATUS last fg command / default to 0 ("0")
   char last_fg_exit_status_str[12];
   sprintf(last_fg_exit_status_str, "%d", last_fg_exit_status); 
@@ -530,35 +528,55 @@ int parse_words(char *word_arr[], int word_arr_len){
   // tokens in 1-4 not included as command arguments 
   // if "<", ">", and "&" appear outside end-of-line context described above, they are treated
   // as regular arguments (see the description for e.g.) 
+  
 
+  while( (strcmp(word_arr[word_arr_len-3], "<") == 0) || (strcmp(word_arr[word_arr_len-3], ">") == 0) ){
+    
+    // infile at end of current arr
+    if (strcmp(word_arr[word_arr_len-3],"<") == 0) {
+      infile = word_arr[word_arr_len-2];
+      word_arr[word_arr_len-3] = NULL;
+      word_arr_len -= 2;
+    }
+
+    // outfile at end of current arr 
+    if (strcmp(word_arr[word_arr_len-3],">") == 0) {
+      outfile = word_arr[word_arr_len-2];
+      word_arr[word_arr_len-3] = NULL;
+      word_arr_len -= 2;
+    }
+  }
+
+  // -------------v OLD VERSION v-----------------------
   // 3. if last word immediately preceded by "<" it shall be 
   // interpreted as filename operand of input redirection operator 
-  if (strcmp(word_arr[word_arr_len-3],"<") == 0) {
-    infile = word_arr[word_arr_len-2];
+//  if (strcmp(word_arr[word_arr_len-3],"<") == 0) {
+//    infile = word_arr[word_arr_len-2];
     //printf("we have infile(<): %s\n", infile);
     //free(word_arr[word_arr_len-2]);
-    word_arr[word_arr_len-3] = NULL;
-    word_arr_len -= 2;
+//    word_arr[word_arr_len-3] = NULL;
+//    word_arr_len -= 2;
 
     //printf("\nAFTER < \n"); 
     //print_arr(word_arr, word_arr_len); 
     //exit(0);
-  }
+//  }
 
   // NOTE w/ 'else if' assuming '<' and '>' cannot be a filename 
   // 4. if last word immediately prceded by ">" it shall be 
   // interpreted as filename operand of output redirection operator 
-  else if (strcmp(word_arr[word_arr_len-3],">") == 0) {
-    outfile = word_arr[word_arr_len-2];
+//  if (strcmp(word_arr[word_arr_len-3],">") == 0) {
+//    outfile = word_arr[word_arr_len-2];
     //printf("we have outfile(>): %s \n", outfile);
     //free(word_arr[word_arr_len-2]);
-    word_arr[word_arr_len-3] = NULL;
-    word_arr_len -= 2;
+//    word_arr[word_arr_len-3] = NULL;
+//    word_arr_len -= 2;
 
     //printf("\nAFTER > \n"); 
     //print_arr(word_arr, word_arr_len); 
     //exit(0);
-  }
+//  }
+  // -------------^ OLD VERSION ^-----------------------
 
   // req: If at this point no command word is present, 
   // smallsh shall silently return to step 1 and print a new prompt message.
