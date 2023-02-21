@@ -33,11 +33,8 @@
 int last_fg_exit_status = 0;
 // "$!" expansion 
 pid_t most_rec_bg_pid; // NULL by default
-
 // HELPER FUNCTIONS / GLOBALS
 int debug = 0;
-
-
 
 
 // print a string pointer array out with null values
@@ -80,6 +77,22 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
   exit:
     return str;
 }
+
+//-------------------------------------------------------
+//SIGNAL HANDLERS
+//-------------------------------------------------------
+/* Our signal handler for SIGINT */
+void handle_SIGINT(){
+	char* message = "Caught SIGINT, sleeping for 10 seconds\n";
+	write(STDOUT_FILENO, message, 39);
+	// Raise SIGUSR2. However, since this signal is blocked until handle_SIGNIT
+	// finishes, it will be delivered only when handle_SIGINT finishes
+	//raise(SIGUSR2);
+	// Sleep for 10 seconds
+	sleep(10);
+}
+
+
 
 //------------------------------------------------------- 
 // OPEN FILE
@@ -213,7 +226,9 @@ int cd_smallsh(char *token_arr[], int token_arr_len){
 }
 
 
+//------------------------------------------------------- 
 // BUILT-IN EXIT
+//------------------------------------------------------- 
 int exit_smallsh(char *token_arr[], int token_arr_len){
 
   // NOTE:  see p. 405 in LPI 
@@ -267,14 +282,11 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
   return 0;
 }
 
-
+//------------------------------------------------------- 
 // NON-BUILT-INS
+//------------------------------------------------------- 
 int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
-    // printf("Parent pid: %d\n", getpid());
-    //if (run_bg || infile || outfile) printf("---\n");  
-    
-
     // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
 
     // built-in cd 
@@ -294,7 +306,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
     // Fork a new process...if successful, childPid=0 in child, child's pid in parent 
     pid_t childPid = fork();
-    if (run_bg == 1){most_rec_bg_pid = childPid;}; // NEW
+    //if (run_bg == 1){most_rec_bg_pid = childPid;}; // NEW check after the fork if error could be -1 check 
 
 
     if (debug == 1) printf("->child pid %jd\n",(intmax_t) childPid); 
@@ -364,10 +376,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 	      //execlp("sort", "sort", NULL);
 	      //return(0);
       }
-
-
-        
-
+        // https://canvas.oregonstate.edu/courses/1901764/pages/exploration-processes-and-i-slash-o?module_item_id=22777110
         // OUTFILE 
         // req: If a filename was specified as the operand to the output (“>”) redirection operator, 
         // the specified file shall be opened for writing on stdout. If the file does not exist, 
@@ -436,34 +445,11 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
           //printf("RUNNING BG PID %jd\n", (intmax_t) childPid);
          
             // req: child process runs in "background", and parent smallsh process does not wait
-            while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { 
+            //   while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { 
             //  req: background is the default behavior of a forked process! TODO - what does this mean? 
             //  req: The "$!" value should be set to the pid of such a process.
             most_rec_bg_pid = childPid;  
 
-            // waitpid() error
-            if (childPid == -1){
-              fprintf(stderr,"waitpid() failed\n"); 
-              exit(1); 
-            } // TODO error good? 
-            
-            // 1) finished - WIFEXITED
-            if(WIFEXITED(childStatus)){
-              printf("bg child %jd exited normally with status %d\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
-              // anything specific? 
-            }
-            // 2) stopped - WIFSTOPPED
-            if(WIFSTOPPED(childStatus)){
-              //printf("bg child %jd stopped by a signal number %d\n", (intmax_t) childPid, WSTOPSIG(childStatus));
-              // anything specific? 
-              // req: 
-            }
-            // 3) signaled - WIFSIGNALED
-            if(WIFSIGNALED(childStatus)){
-              printf("bg child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
-              // anything specific? 
-            } 
-        } // while 
         } // else 
         // parent waiting done once child exited 
         break;
@@ -559,36 +545,6 @@ int parse_words(char *word_arr[], int word_arr_len){
     }
   }
 
-  // -------------v OLD VERSION v-----------------------
-  // 3. if last word immediately preceded by "<" it shall be 
-  // interpreted as filename operand of input redirection operator 
-//  if (strcmp(word_arr[word_arr_len-3],"<") == 0) {
-//    infile = word_arr[word_arr_len-2];
-    //printf("we have infile(<): %s\n", infile);
-    //free(word_arr[word_arr_len-2]);
-//    word_arr[word_arr_len-3] = NULL;
-//    word_arr_len -= 2;
-
-    //printf("\nAFTER < \n"); 
-    //print_arr(word_arr, word_arr_len); 
-    //exit(0);
-//  }
-
-  // NOTE w/ 'else if' assuming '<' and '>' cannot be a filename 
-  // 4. if last word immediately prceded by ">" it shall be 
-  // interpreted as filename operand of output redirection operator 
-//  if (strcmp(word_arr[word_arr_len-3],">") == 0) {
-//    outfile = word_arr[word_arr_len-2];
-    //printf("we have outfile(>): %s \n", outfile);
-    //free(word_arr[word_arr_len-2]);
-//    word_arr[word_arr_len-3] = NULL;
-//    word_arr_len -= 2;
-
-    //printf("\nAFTER > \n"); 
-    //print_arr(word_arr, word_arr_len); 
-    //exit(0);
-//  }
-  // -------------^ OLD VERSION ^-----------------------
 
   // req: If at this point no command word is present, 
   // smallsh shall silently return to step 1 and print a new prompt message.
@@ -652,38 +608,13 @@ int split_words(char *line, ssize_t line_length){
 int main(){
 
   // Main loop
+
   char *line = NULL;
   size_t n = 0;
+
   pid_t pid = getpid();
   if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid);
 
-
-  // req: Check for any un-waited-for background processes in same pid 
-    // group as smallsh and print following message 
-    // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
-    // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
-    // If stopped: smallsh send it SIGCONT and print to stderr :“Child process %d stopped. Continuing.\n”, <pid>"
-    // e.g., fprintf(stderr, "Child process %jd done. Exit status %d\n", (intmax_t) pid, status); 
-   
-    // Display prompt from PS1	
-    // REQ/TODO: If reading interrupted by signal (see sig handling) a newline is printed, then 
-    // a new command prompt shall be printed (including checking for background processes) and 
-    // reading input shall resume. See CLEARERR(3) and reset errno.
-
-
-    // LPI pp. ~548 helpful on waiting 
-    //    SIGNAL HANDLING 
-    //    The SIGTSTP signal shall be ignored by smallsh.
-    //    The SIGINT signal shall be ignored (SIG_IGN) at 
-    //    all times except when reading a line of input in Step 1, 
-    //    during which time it shall be registered to a signal handler 
-    //    which does nothing.
-    //    Explanation:
-    //    SIGTSTP (CTRL-Z) normally causes a process to halt, 
-    //    which is undesirable. The smallsh process should not 
-    //    respond to this signal, so it sets its disposition to SIG_IGN.
-    //    The SIGINT (CTRL-C) signal normally causes a process to exit 
-    //    immediately, which is not desired.
 
   for (;;) {
     // Before printing a prompt message, smallsh shall check for any un-waited-for background processes 
@@ -691,64 +622,100 @@ int main(){
     // for each:
     pid_t childPid; 
     int childStatus;
-
+    // use list - 
     while ((childPid =  waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0){
-           // printf("PRE PROMPT CHECK childPid: %jd childStatus: %i\n", (intmax_t) childPid, childStatus); 
-            //most_rec_bg_pid = childPid;  
-            //printf("CHILDPID: %jd", (intmax_t) childPid); 
-            // waitpid() error
-            if (childPid == -1){
-              fprintf(stderr,"waitpid() failed\n"); 
-              exit(1); 
-            } // TODO error good? 
+      // printf("PRE PROMPT CHECK childPid: %jd childStatus: %i\n", (intmax_t) childPid, childStatus); 
+      //most_rec_bg_pid = childPid;  
+      //printf("CHILDPID: %jd", (intmax_t) childPid); 
+      // waitpid() error
+
+      if (childPid == -1){
+       fprintf(stderr,"waitpid() failed\n"); 
+       exit(1); 
+      } // TODO error good? 
             
-            // 1) finished - WIFEXITED
-            if(WIFEXITED(childStatus)){
-              fprintf(stderr, "Child process %jd done. Exit status %d.\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
-              // anything specific? 
-            }
-            // 2) stopped - WIFSTOPPED
-            if(WIFSTOPPED(childStatus)){
-              fprintf(stderr, "Child process %jd stopped. Continuing.\n", (intmax_t) childPid); //WSTOPSIG(childStatus));
-              kill(childPid, SIGCONT); 
-              // anything specific? 
-              // req: 
-            }
-            // 3) signaled - WIFSIGNALED
-            if(WIFSIGNALED(childStatus)){
-              fprintf(stderr, "Child process %jd done. Signaled %d.\n", (intmax_t) childPid, WTERMSIG(childStatus));
-              // anything specific? 
-            } 
+      // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
+      if(WIFEXITED(childStatus)){
+        fprintf(stderr, "Child process %jd done. Exit status %d.\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
+      // anything specific? 
+      }
 
+      // If a child process is stopped, smallsh shall send it the SIGCONT signal and print 
+      // the following message to stderr: 
+      // “Child process %d stopped. Continuing.\n”, <pid> (See KILL(2))
+      if(WIFSTOPPED(childStatus)){
+        fprintf(stderr, "Child process %jd stopped. Continuing.\n", (intmax_t) childPid); //WSTOPSIG(childStatus));
+        kill(childPid, SIGCONT); 
+        // anything specific? 
+      }
+
+      // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
+      if(WIFSIGNALED(childStatus)){
+        fprintf(stderr, "Child process %jd done. Signaled %d.\n", (intmax_t) childPid, WTERMSIG(childStatus));
+      // anything specific? 
+      } 
     }
-
-    // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
-   
-    // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
-    
-    // If a child process is stopped, smallsh shall send it the SIGCONT signal and print 
-    // the following message to stderr: 
-    // “Child process %d stopped. Continuing.\n”, <pid> (See KILL(2))
-    
-    // LEFT OFF HERE 230220 - 
-    // TRYING TO FIGURE THIS PRE-PROMPT BG PROCESS CHECK 
-    // CONSISTENTLY PASSING TEST 2/3 FOR THE BACKGROUND, BUT NOT 1. 
-    // ISN'T EXITING AND PRINTING TO STDOUT
-    // FOR TEST 3 IT ISN'T CONSISTENT - MAY BE SIG HANDLING
-    // SIGNALS, AND WHY SLEEPING PROCESS ID CAN'T BE FOUND IN THE TEST SCRIPT 
-
 
     // req: print a prompt to stderr by expanding the PS1 
     const char *env_p = getenv("PS1");  // pointer or null   
     fprintf(stderr, "%s",(env_p ? env_p : ""));
 
     // req: after prompt, read line from stdin (getline(3) 
-    ssize_t line_length = getline(&line, &n, stdin); 
+    ssize_t line_length = getline(&line, &n, stdin);
+
+    // SIGNAL 
+    // If reading is interrupted by a signal (see signal handling), a newline shall be printed, 
+    // then a new command prompt shall be printed (including checking for background processes), 
+    // and reading a line of input shall resume. (See CLEARERR(3), and don’t forget to reset errno).
+
+    // From https://canvas.oregonstate.edu/courses/1901764/pages/exploration-signal-handling-api?module_item_id=22777109
+	  
+	  struct sigaction SIGINT_action = {0}// SIGUSR2_action = {0}, ignore_action = {0};
+
+	  // Fill out the SIGINT_action struct
+	  // Register handle_SIGINT as the signal handler
+	  SIGINT_action.sa_handler = handle_SIGINT;
+	  // Block all catchable signals while handle_SIGINT is running
+	  sigfillset(&SIGINT_action.sa_mask);
+	  // No flags set
+	  SIGINT_action.sa_flags = 0;
+	  sigaction(SIGINT, &SIGINT_action, NULL);
+
+	// Fill out the SIGUSR2_action struct
+	// Register handle_SIGUSR2 as the signal handler
+	//SIGUSR2_action.sa_handler = handle_SIGUSR2;
+	// Block all catchable signals while handle_SIGUSR2 is running
+	//sigfillset(&SIGUSR2_action.sa_mask);
+	// No flags set
+	//SIGUSR2_action.sa_flags = 0;
+	//sigaction(SIGUSR2, &SIGUSR2_action, NULL);
+
+	// The ignore_action struct as SIG_IGN as its signal handler
+	//ignore_action.sa_handler = SIG_IGN;
+
+	// Register the ignore_action as the handler for SIGTERM, SIGHUP, SIGQUIT.
+	// So all three of these signals will be ignored.
+	//sigaction(SIGTERM, &ignore_action, NULL);
+	//sigaction(SIGHUP, &ignore_action, NULL);
+	//sigaction(SIGQUIT, &ignore_action, NULL);
+
+
+	//pid_t pid = getpid();
+	printf("This process PID is %d\n", pid);
+	printf("Send signals to the process using the kill command, e.g., kill -SIGINT %d\n", pid);
+	//printf("SIGTERM, SIGHUP, and SIGQUIT are disabled, so will be ignored.\n");
+	//printf("SIGUSR2 signal will kill this program.\n");
+	printf("SIGINT signal will cause the program to sleep 10 seconds\n");//, then will then kill this program by raising SIGUSR2.\n");
+
+	while(1)
+		pause();
+
+
+
+
+    // CHECK ALL THIS 
     if (feof(stdin)){
       // req: EOF on stdin interpreted as implied `exit $?`
-      // TODO req: if reading interrupted by signal (signal handling) 
-      //   then newline printed, check for background processes, new prompt, read resume 
-      //   see clearerr(3) and reset errno 
       exit(last_fg_exit_status);  
     }
     // handle error 
@@ -756,7 +723,8 @@ int main(){
       free(line);
       fprintf(stderr, "getline() failed\n");
       clearerr(stdin); // TODO: Right? no EOF reset stdin (discussed somewhere + M5 see notes) 
-      exit(EXIT_FAILURE); // TODO right error? 
+      //exit(EXIT_FAILURE); // TODO right error? 
+      exit(last_fg_exit_status); 
     }
 
     // 2. Word Splitting 
