@@ -16,13 +16,11 @@
 
 
 // NOTES/TODO:
-// consider generic error exit function / incorporate into existing exit_smallsh 
 // see p. 52 in LPI
-// use of perror versus fprintf(stderr,..) throughout 
 // REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
-// $? set to a non-zero-value. Further processing of the command line stops and return to step 1 / input. 
- 
 
+// SOURCES
+// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
 
 
 // GLOBALS   
@@ -618,6 +616,7 @@ int main(){
     if (feof(stdin)){
       if (debug == 1) printf("EOF on stdin\n");
      // req: EOF on stdin interpreted as implied `exit $?`
+      fprintf(stderr, "\nexit\n");
       exit(last_fg_exit_status);  
     }
 
@@ -649,6 +648,4 @@ int main(){
 }
 
 
-// SOURCES
-// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
 
