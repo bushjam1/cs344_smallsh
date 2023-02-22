@@ -51,7 +51,6 @@ int main(){
 	  sigfillset(&SIGINT_action.sa_mask);
 	  // No flags set
 	  SIGINT_action.sa_flags = 0;
-
 	  // Install our signal handler
 	  sigaction(SIGINT, &SIGINT_action, NULL);
 
@@ -68,6 +67,9 @@ int main(){
 
 	  //printf("Send the signal SIGINT to this process by entering Control-C. That will cause the signal handler to be invoked\n");
 	  fflush(stdout);
+
+
+
 
     // MAIN LOOP
     printf("Here\n"); 

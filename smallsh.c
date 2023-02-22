@@ -12,7 +12,6 @@
 #include <limits.h> // PATH_MAX
 #include <fcntl.h> // open()
 #include <sys/stat.h> // fstat()
-                      //
 
 
 // NOTES/TODO:
@@ -43,7 +42,7 @@ void print_arr(char *arr[], int size){
   }
 }
 
-// string substitution 
+// string substitution -- [2] CS344 video
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
   size_t haystack_len = strlen(str);
@@ -550,6 +549,15 @@ int split_words(char *line, ssize_t line_length){
 
 int main(){
 
+  // Signals 
+  struct sigaction ignore_action = {0};//sigaction SIGINT_action = {0}
+
+	// The ignore_action struct as SIG_IGN as its signal handler
+	ignore_action.sa_handler = SIG_IGN; 
+
+	// Register the ignore_action as the handler for SIGTSTP
+  sigaction(SIGTSTP, &ignore_action, NULL);
+
   // Main loop
   char *line = NULL;
   size_t n = 0;
@@ -648,4 +656,6 @@ int main(){
 }
 
 
+// SOURCES
+// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
 
