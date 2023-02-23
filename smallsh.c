@@ -42,6 +42,13 @@ void print_arr(char *arr[], int size){
   }
 }
 
+// Handler for SIGNINT
+void dummy_function(int signo){
+	//char* message = "Caught SIGINT\n";
+	//write(STDOUT_FILENO, message, 15);
+  //printf("DONOTHINGBRAAP!\n");
+}
+
 // string substitution -- [2] CS344 video
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
@@ -335,7 +342,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-        print_arr(token_arr, token_arr_len); // DEBUG test script  
+        if (debug == 1) print_arr(token_arr, token_arr_len); // DEBUG test script  
 		    exit(1); // TODO error good? TODO use own process to exit? 
 		    break;
 
@@ -549,25 +556,33 @@ int split_words(char *line, ssize_t line_length){
 
 int main(){
 
-  // Signals 
-  struct sigaction ignore_action = {0};//sigaction SIGINT_action = {0}
+  // Signal handling 
+  struct sigaction dummy_action = {0}, ignore_action = {0};
 
-	// The ignore_action struct as SIG_IGN as its signal handler
-	ignore_action.sa_handler = SIG_IGN; 
+  // dummy_action
+	dummy_action.sa_handler = dummy_function; 
+	// Block all catchable signals while dummy_function is running
+	sigfillset(&dummy_action.sa_mask); 
+	// No flags
+	dummy_action.sa_flags = 0;
+  // Initially register dummy_action for SIGINT (ctrl-c) (temporarily)
+	sigaction(SIGINT, &dummy_action, NULL);
 
-	// Register the ignore_action as the handler for SIGTSTP
-  sigaction(SIGTSTP, &ignore_action, NULL);
+  // ignore_action 
+	ignore_action.sa_handler = SIG_IGN;
+	// Register as handler for SIGTSTP (ctrl-z) (permanently)
+	sigaction(SIGTSTP, &ignore_action, NULL);
 
-  // Main loop
+
+  // For getting input from getline()
   char *line = NULL;
   size_t n = 0;
   
-
   pid_t pid = getpid();
   pid_t gpid = getpgrp(); 
   //if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid);
-
   
+  // Main loop
   for (;;) {   
     if (debug == 1) printf("\nmain() for() loop current process %jd most recent bg process %jd\n", (intmax_t) getpid(), (intmax_t) most_rec_bg_pid);
 
@@ -577,10 +592,8 @@ int main(){
     // PRE-PROMPT CHECK
     // Before prompt, check for any un-waited-for background processes in the same process group ID 
     // as smallsh, and print the following informative message to stderr for each:
-
     while ((childPid =  waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0){
       if (debug == 1) printf("main() pre-prompt while loop: smallsh pid: %jd groupid %jd childPid %jd\n", (intmax_t) pid, (intmax_t) gpid, (intmax_t) childPid);
-      //most_rec_bg_pid = childPid;  
 
       // error 
       if (childPid == -1){
@@ -616,6 +629,9 @@ int main(){
     //command_no ++; 
     //fprintf(stderr, "%i %jd %s",command_no, (intmax_t) pid, (env_p ? env_p : ""));
 
+    // Now register dummy_action for SIGINT 
+    sigaction(SIGINT, &dummy_action, NULL);
+
     // req: after prompt, read line from stdin (getline(3) 
     ssize_t line_length = getline(&line, &n, stdin);
 
@@ -638,7 +654,11 @@ int main(){
       //exit(EXIT_FAILURE); // TODO right error?
       fprintf(stderr, "\n"); 
       //exit(last_fg_exit_status); 
+      continue; 
     }
+
+    // Now register ignore_action for SIGINT 
+    sigaction(SIGINT, &ignore_action, NULL);
 
     // 2. Word Splitting 
     if (debug == 1) printf("\nmain() call to split_words()\n");

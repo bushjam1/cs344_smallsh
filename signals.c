@@ -20,10 +20,12 @@
 /* Our signal handler for SIGINT */
 /* Our signal handler for SIGINT */
 void handle_SIGINT(){
-	char* message = "Caught SIGINT, sleeping for 3 seconds\n";
+	//char* message = "Caught SIGINT, sleeping for 3 seconds\n";
   //We are using write rather than printf
-  write(STDOUT_FILENO, message, 39);
-	sleep(3);
+  //write(STDOUT_FILENO, message, 39);
+	//sleep(3);
+  printf("he\n");
+  
 }
 int there(){
   printf("There\n"); 
@@ -65,28 +67,30 @@ int main(){
 
 
 
-	  //printf("Send the signal SIGINT to this process by entering Control-C. That will cause the signal handler to be invoked\n");
-	  fflush(stdout);
+
 
 
 
 
     // MAIN LOOP
-    printf("Here\n"); 
+    
     for(;;){
-        char *line = NULL;
-    size_t n = 0;
+      	  //printf("Send the signal SIGINT to this process by entering Control-C. That will cause the signal handler to be invoked\n");
+	    fflush(stdout);
+
+      char *line = NULL;
+      size_t n = 0;
       // req: print a prompt to stderr by expanding the PS1 
-      const char *env_p = getenv("PS1");  // pointer or null   
+      const char *env_p = "$";//getenv("PS1");  // pointer or null   
       fprintf(stderr, "%s",(env_p ? env_p : ""));
 
       //char *buf[300]; 
       getline(&line, &n, stdin);
       
-      //for (int i =0; i < len; i++){
-      //  printf(line[i]); 
-      //}
-      printf("%s\n", line);
+      for (int i =0; i < n; i++){
+       printf(line[i]); 
+      }
+      
 
       free(line); 
  
