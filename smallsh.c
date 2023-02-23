@@ -1,55 +1,49 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> // getpgrp(), chdir(), getcwd(), fork(), execvp()
-#include <stdint.h> // intmax_t
-#include <string.h> // strtok
-#include <stddef.h> // ptrdiff_t str_gsub
+#include <unistd.h> 
+#include <stdint.h>
+#include <string.h>
+#include <stddef.h>
 #include <errno.h>
-#include <signal.h> // SIGINT etc
-#include <sys/types.h> // pid_t
+#include <signal.h> 
+#include <sys/types.h>
 #include <sys/wait.h> // wait
-#include <limits.h> // PATH_MAX
-#include <fcntl.h> // open()
-#include <sys/stat.h> // fstat()
+#include <limits.h>
+#include <fcntl.h>
+#include <sys/stat.h> 
 
 
 // NOTES/TODO:
-// see p. 52 in LPI
 // REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
+
 
 // SOURCES
 // [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
+// [2] https://www.youtube.com/watch?v=-3ty5W_6-IQ
 
 
-// GLOBALS   
+//-------------------------------------------------------
+// GLOBALS 
+//-------------------------------------------------------
 // "$?" expansion - req: default to 0 ("0") 
 int last_fg_exit_status = 0;
 // "$!" expansion 
 pid_t most_rec_bg_pid; // NULL by default
-// HELPER FUNCTIONS / GLOBALS
+
 int debug = 0;
 int command_no = 0; 
 
-// print a string pointer array out with null values
-void print_arr(char *arr[], int size){
-  for (int i = 0; i < size; i++){
-    if (arr[i] == NULL){
-      printf("arr[%i] is NULL\n",i); 
-    } else {
-      printf("arr[%i]: %s\n",i, arr[i]); 
-    }
-  }
-}
-
-// Handler for SIGNINT
+//-------------------------------------------------------
+// SIGNAL HANDLER - SIGNINT
+//-------------------------------------------------------
 void dummy_function(int signo){
 	//char* message = "Caught SIGINT\n";
 	//write(STDOUT_FILENO, message, 15);
-  //printf("DONOTHINGBRAAP!\n");
 }
-
-// string substitution -- [2] CS344 video
+//-------------------------------------------------------
+// string substitution -- [2] 
+//-------------------------------------------------------
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
   size_t haystack_len = strlen(str);
@@ -298,7 +292,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
       // Child process will execute this branch
       case 0: 
-        // Register as handler for SIGINT (ctrl-d) (for child)
+        // Register as handler for SIGINT (ctrl-c) (for child)
 	      signal(SIGINT, SIG_DFL);
         
         if (debug == 1) printf("\nexecute_commands() in fork branch 0 current pid %jd 'childPid' %jd\n",(intmax_t) getpid(), (intmax_t) childPid); 
@@ -683,7 +677,4 @@ int main(){
   exit(EXIT_SUCCESS);
 }
 
-
-// SOURCES
-// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
 
