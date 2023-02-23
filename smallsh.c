@@ -298,6 +298,8 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
       // Child process will execute this branch
       case 0: 
+        // Register as handler for SIGINT (ctrl-d) (for child)
+	      signal(SIGINT, SIG_DFL);
         
         if (debug == 1) printf("\nexecute_commands() in fork branch 0 current pid %jd 'childPid' %jd\n",(intmax_t) getpid(), (intmax_t) childPid); 
         if (infile){
@@ -557,7 +559,7 @@ int split_words(char *line, ssize_t line_length){
 int main(){
 
   // Signal handling 
-  struct sigaction dummy_action = {0}, ignore_action = {0};
+  struct sigaction dummy_action = {0}, default_action = {0}, ignore_action = {0};
 
   // dummy_action
 	dummy_action.sa_handler = dummy_function; 
@@ -567,6 +569,12 @@ int main(){
 	dummy_action.sa_flags = 0;
   // Initially register dummy_action for SIGINT (ctrl-c) (temporarily)
 	sigaction(SIGINT, &dummy_action, NULL);
+
+  // default action 
+	default_action.sa_handler = SIG_DFL;
+  // // Block all catchable signals while dummy_function is running ?
+	// sigfillset(&dummy_action.sa_mask); 
+
 
   // ignore_action 
 	ignore_action.sa_handler = SIG_IGN;
