@@ -17,10 +17,9 @@
 // NOTES/TODO:
 // REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
 
-
 // SOURCES
-// [1] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
-// [2] https://www.youtube.com/watch?v=-3ty5W_6-IQ
+// [1] https://www.youtube.com/watch?v=-3ty5W_6-IQ
+// [2] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
 
 
 //-------------------------------------------------------
@@ -41,8 +40,9 @@ void dummy_function(int signo){
 	//char* message = "Caught SIGINT\n";
 	//write(STDOUT_FILENO, message, 15);
 }
+
 //-------------------------------------------------------
-// string substitution -- [2] 
+// string substitution -- [1] 
 //-------------------------------------------------------
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
@@ -73,77 +73,6 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
     return str;
 }
 
-//------------------------------------------------------- 
-// OPEN FILE
-//-------------------------------------------------------
-int open_smallsh(const char *file_path, const int mode){
-
- 
-  // mode 0 = infile, mode 1 = outfile
-
-	// INFILE - Open source file
-  // req: "If a filename was specified as the operand to the input (“<”) 
-  // redirection operator, the specified file shall be opened for 
-  // reading on stdin. It shall be an error if the file cannot be 
-  // opened for reading or does not already exist." 
-  if (mode == 0) {
-    printf("infile a\n"); 
-	  int sourceFD = open(file_path, O_RDONLY);
-	  if (sourceFD == -1) { 
-		  perror("source open()"); 
-		  exit(1); 
-	  }
-	  // Debug - Written to terminal
-	  //printf("sourceFD == %d\n", sourceFD); 
-
-	  // Redirect stdin to source file
-    // dup2(<old fd>, <new fd>) 0=stdin, 1=stdout, 2=strerr; newfd points to oldfd
-	  int result = dup2(sourceFD, 0);
-	  if (result == -1) { 
-		  perror("source dup2()"); 
-		  exit(2); 
-	  }
-    printf("dup success"); 
-    return result; 
-    //exit(1);
-  }
-
-  // OUTFILE - Open/write to target file
-  // req: "If a filename was specified as the operand to the output (“>”) 
-  // redirection operator, the specified file shall be opened for 
-  // writing on stdout. If the file does not exist, it shall be 
-  // created with permissions 0777. It shall be an error if the 
-  // file cannot be opened (or created) for writing."
-	if (mode == 1) {
-  
-	  int targetFD = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	  if (targetFD == -1) { 
-		  perror("target open()"); 
-		  exit(1); 
-	  }
-	  printf("targetFD == %d\n", targetFD); // Written to terminal
-  
-	  // Redirect stdout to target file
-	  int result = dup2(targetFD, 1);
-	  if (result == -1) { 
-		  perror("target dup2()"); 
-		  exit(2); 
-	  }
-	  // Run the sort program using execlp.
-	  // The stdin and stdout are pointing to files
-	  execlp("sort", "sort", NULL);
-	  return(0);
-  }
-  
-  return 0; 
-
-  // Open the file using the open system call
-  // The flag O_RDWR means the file should be opened for reading and writing
-  // The flag O_CREAT means that if the file doesn't exist, open should create it
-  // The flag O_TRUNC means that if the file already exits, open should truncate it.
-  
-  
-  }
 //------------------------------------------------------- 
 // BUILT-IN CD
 //-------------------------------------------------------
@@ -251,6 +180,7 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
   return 0;
 }
 
+
 //------------------------------------------------------- 
 // 5. EXECUTTION
 //------------------------------------------------------- 
@@ -312,7 +242,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		          exit(2); 
 	          }
         }
-        // https://canvas.oregonstate.edu/courses/1901764/pages/exploration-processes-and-i-slash-o?module_item_id=22777110
         // OUTFILE 
         if (outfile){
 	        int targetFD = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0777);
@@ -338,12 +267,10 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-        if (debug == 1) print_arr(token_arr, token_arr_len); // DEBUG test script  
+        //if (debug == 1) print_arr(token_arr, token_arr_len); // DEBUG test script  
 		    exit(1); // TODO error good? TODO use own process to exit? 
 		    break;
 
-
-      // NOTE: LPI pp. ~548 helpful on waiting 
 
       // Parent process - childPid is pid of the child, parent will execute below 
       default: 
