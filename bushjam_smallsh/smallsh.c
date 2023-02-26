@@ -553,7 +553,7 @@ int main(){
     if (debug == 1) printf("\nprint prompt\n");
     // req: print a prompt to stderr by expanding the PS1 
     const char *env_p = getenv("PS1");  // pointer or null   
-    fprintf(stderr, "%s",(env_p ? env_p : "\033[0;36m$ ")); 
+    fprintf(stderr, "%s",(env_p ? env_p : ""));
 
     //command_no ++; 
     //fprintf(stderr, "%i %jd %s",command_no, (intmax_t) pid, (env_p ? env_p : ""));
