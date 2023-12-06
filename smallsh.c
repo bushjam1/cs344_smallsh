@@ -8,33 +8,30 @@
 #include <errno.h>
 #include <signal.h> 
 #include <sys/types.h>
-#include <sys/wait.h> // wait
+#include <sys/wait.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <sys/stat.h> 
 
 
-// NOTES/TODO:
-// REQ: Any explicitly mentioned error shall print informative error msg to stderr (fprintf) and
-
-// SOURCES
-// [1] https://www.youtube.com/watch?v=-3ty5W_6-IQ
-// [2] https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
-
+/*
+Author:      James Bush
+Date:        2023-03-01
+Description: Interactive shell program for CS344, Operating Systems 
+*/
 
 //-------------------------------------------------------
-// GLOBALS 
+// Globals 
 //-------------------------------------------------------
 // "$?" expansion - req: default to 0 ("0") 
 int last_fg_exit_status = 0;
 // "$!" expansion 
 pid_t most_rec_bg_pid; // NULL by default
-
 int debug = 0;
 int command_no = 0; 
 
 //-------------------------------------------------------
-// SIGNAL HANDLER - SIGNINT
+// Signal Handler - SIGNINT
 //-------------------------------------------------------
 void dummy_function(int signo){
 	//char* message = "Caught SIGINT\n";
@@ -42,7 +39,7 @@ void dummy_function(int signo){
 }
 
 //-------------------------------------------------------
-// string substitution -- [1] 
+// String Substitution -- https://www.youtube.com/watch?v=-3ty5W_6-IQ
 //-------------------------------------------------------
 char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, char const *restrict sub){
   char *str = *haystack;
@@ -74,21 +71,19 @@ char *str_gsub(char *restrict *restrict haystack, char const *restrict needle, c
 }
 
 //------------------------------------------------------- 
-// BUILT-IN CD
+// Built-in CD
 //-------------------------------------------------------
 int cd_smallsh(char *token_arr[], int token_arr_len){
   // req: takes one argument.
   if (token_arr_len < 2) {
-    fprintf(stderr, "cd_smallsh(): too few arguments\n"); // NOTE: Likely imppossible
+    fprintf(stderr, "cd_smallsh(): too few arguments\n"); // Likely imppossible
     return -1; 
   }
   if (token_arr_len > 3) {
     fprintf(stderr, "cd_smallsh(): too many arguments\n"); 
     return -1; 
   }
-
-   //char *newWd[PATH_MAX];
-   char newWd[PATH_MAX]; 
+  char newWd[PATH_MAX]; 
   
   // req: If not provided, the argument is implied to be the expansion of “~/”
   if (token_arr_len == 2 && token_arr[1] == NULL){
@@ -96,6 +91,7 @@ int cd_smallsh(char *token_arr[], int token_arr_len){
     if (!homeStr) {homeStr = "";}
     strcpy(newWd, homeStr); 
   } 
+
   // Otherwise, first argument is token_arr[1]
   else {
     strcpy(newWd, token_arr[1]); 
@@ -111,15 +107,13 @@ int cd_smallsh(char *token_arr[], int token_arr_len){
   // attempt cd, print error if error - chdir(2)
   errno = 0; 
   if (chdir(newWd) != 0){ 
-    perror("chdir() failed"); // TODO: Improve this error checking?  
-    //printf("%i",errno); 
-    // reset errno etc?? 
+    perror("chdir() failed");
     return -1;
   };
  
   if (debug == 1) {
    int cwd_size = PATH_MAX; 
-   char cwd[cwd_size]; // TODO: good size?
+   char cwd[cwd_size];
    getcwd(cwd, PATH_MAX);
    printf("cd_smallsh(): working directory (after cd): %s\n", cwd);
   }
@@ -129,17 +123,16 @@ int cd_smallsh(char *token_arr[], int token_arr_len){
 
 
 //------------------------------------------------------- 
-// BUILT-IN EXIT
+// Built-in Exit
 //------------------------------------------------------- 
 int exit_smallsh(char *token_arr[], int token_arr_len){
-
-  // NOTE:  see p. 405 in LPI 
-
+  // NOTEe: p. 405 in LPI 
   // req: takes one argument.
   if (token_arr_len < 2) {
-    fprintf(stderr, "exit_smallsh(): too few arguments\n"); // NOTE: Likely imppossible
+    fprintf(stderr, "exit_smallsh(): too few arguments\n"); // Likely imppossible
     return -1; 
   }
+
   if (token_arr_len > 3) {
     fprintf(stderr, "exit_smallsh(): too many arguments\n"); 
     return -1; 
@@ -149,11 +142,9 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
   // req: print "\nexit\n" to stderr
   fprintf(stderr, "\nexit\n");
   // all child processes sent SIGINT prior to exit (see KILL(2))
-
   //kill(0, SIGINT); // int kill(pid_t pid, int sig); pid=0 sends to group
 
-  // req: takes 1 argument. If not provided, it is implied to be
-  // expansion of “$?”, the exit status of the last foreground command.
+  // req: takes 1 argument. If not provided, implied to be expansion of “$?”
   if (token_arr_len == 2 && token_arr[1] == NULL){
     if (debug == 1) printf("A:\n"); 
     exit(last_fg_exit_status); 
@@ -182,41 +173,34 @@ int exit_smallsh(char *token_arr[], int token_arr_len){
 
 
 //------------------------------------------------------- 
-// 5. EXECUTTION
+// 5. Execution
 //------------------------------------------------------- 
 int execute_commands(char *token_arr[], int const token_arr_len, int const run_bg, char const *restrict infile, char const *restrict outfile){
         
-    // CHECK FOR BUILT-INS (CD / EXIT_SMALLSH)  
-    //
+    // Check for built-in cd / exit function calls
     if (debug == 1) printf("\nexecute_command() no fork() yet current process %jd\n", (intmax_t) getpid()); 
-
     // built-in cd 
-    if (strcmp(token_arr[0],"cd") == 0){
-      cd_smallsh(token_arr, token_arr_len); // TODO check error conditions 
-      return 0;
-    } 
+    // if (strcmp(token_arr[0],"cd") == 0){
+    //   cd_smallsh(token_arr, token_arr_len); // TODO check error conditions 
+    //   return 0;
+    // } 
     // built-in exit 
     if (strcmp(token_arr[0],"exit") == 0){
       exit_smallsh(token_arr, token_arr_len);
       return 0; 
     }
     
-    // OTHEWISE FG/BG COMMAND 
-
+    // Otherwise, exit foreground/background process
     int childStatus;
-
     // Fork a new process...if successful, childPid=0 in child, child's pid in parent 
     pid_t childPid = fork();
     //if (run_bg == 1){most_rec_bg_pid = childPid;}; // NEW check after the fork if error could be -1 check 
-
-
     if (debug == 1) printf("\nexecute_commands() current process %jd forked new child pid: %jd\n",(intmax_t) getpid(), (intmax_t) childPid); 
 
     switch(childPid){
-
       // Fork error
       case -1:
-        perror("\nfork() failed"); // TODO error good?
+        perror("\nfork() failed");
         exit(1);
         break;
 
@@ -224,7 +208,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
       case 0: 
         // Register as handler for SIGINT (ctrl-c) (for child)
 	      signal(SIGINT, SIG_DFL);
-        
         if (debug == 1) printf("\nexecute_commands() in fork branch 0 current pid %jd 'childPid' %jd\n",(intmax_t) getpid(), (intmax_t) childPid); 
         if (infile){
         	// INFILE - Open source file
@@ -233,8 +216,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		          perror("source open()"); 
 		          exit(1); 
 	          }
-
-	          // Redirect stdin to source filehe
+	          // Redirect stdin to source file
             // dup2(<old fd>, <new fd>) 0=stdin, 1=stdout, 2=strerr; newfd points to oldfd
 	          int result = dup2(sourceFD, 0);
 	          if (result == -1) {   
@@ -250,7 +232,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 		        exit(1); 
 	        }
 	        //printf("targetFD == %d\n", targetFD); // Written to terminal
-  
 	        // Redirect stdout to target file
 	        int result = dup2(targetFD, 1);
 	        if (result == -1) { 
@@ -259,18 +240,15 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 	        }
         }
 
-        // EXECUTE COMMANDS 
-
+        // Execute commands
         //most_rec_bg_pid = childPid;
 		    if (debug == 1) printf("\nexecute_commands() current process %jd running command <%s> -- most_rec_bg_pid %jd \n",(intmax_t) getpid(), token_arr[0], (intmax_t) most_rec_bg_pid);
         // execvp searches the PATH for the env variable with argument 1
 		    execvp(token_arr[0], token_arr);
 		    // exec only returns if there is an error
 		    perror("execvp() failed");
-        //if (debug == 1) print_arr(token_arr, token_arr_len); // DEBUG test script  
-		    exit(1); // TODO error good? TODO use own process to exit? 
+		    exit(1); 
 		    break;
-
 
       // Parent process - childPid is pid of the child, parent will execute below 
       default: 
@@ -294,12 +272,14 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
             // req: The "$?" shell variable shall be set to the exit status of the waited-for command. 
             last_fg_exit_status = WEXITSTATUS(childStatus);
           }
+
           // 2) if term'd by signal...
           else if(WIFSIGNALED(childStatus)){
             if (debug == 1) fprintf(stderr, "Child %jd killed by signal %d\n", (intmax_t) childPid, WTERMSIG(childStatus));
             // req: ...set '$?' to 128 + [n]/the number of terming signal to child 
             last_fg_exit_status = 128 + WTERMSIG(childStatus); 
           }  
+
           // 3) if stopped...
           else if(WIFSTOPPED(childStatus)){
             // req: send it the SIGCONT signal 
@@ -316,13 +296,11 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
         }
 
         // background / non-blocking wait + poll
-
-        // NOTE: Background? record $!. Then check change of any processes before prompt.
+        // If brackground record $!, then check change of any processes before prompt.
         else if (run_bg == 1){
           if (debug == 1) printf("\nexecute_commands() running BG current process %jd \n",(intmax_t) getpid());
           BACKGROUND:
           //printf("RUNNING BG PID %jd\n", (intmax_t) childPid);
-         
             // req: child process runs in "background", and parent smallsh process does not wait
             //   while ((childPid = waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0) { 
             //  req: background is the default behavior of a forked process! TODO - what does this mean? 
@@ -334,7 +312,6 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
         } // else 
         // parent waiting done once child exited
-        //printf("This is happening\n");
         if (debug == 1) printf("\nexecute_commands() breaking from fork current process %jd\n", (intmax_t) getpid());
         break;
         } 
@@ -344,7 +321,7 @@ int execute_commands(char *token_arr[], int const token_arr_len, int const run_b
 
 
 //------------------------------------------------------- 
-// 3. EXPANSION
+// 3. Expansion
 //------------------------------------------------------- 
 char *expand_word(char *restrict *restrict word){
 
@@ -377,7 +354,7 @@ char *expand_word(char *restrict *restrict word){
 
 
 //------------------------------------------------------- 
-// 4. PARSING 
+// 4. Parsing 
 //------------------------------------------------------- 
 int parse_words(char *word_arr[], int word_arr_len){
 
@@ -403,7 +380,6 @@ int parse_words(char *word_arr[], int word_arr_len){
   }
 
   // steps 3/4 can occur in either order 
-
   while( (strcmp(word_arr[word_arr_len-3], "<") == 0) || (strcmp(word_arr[word_arr_len-3], ">") == 0) ){
     
     // infile at end of current arr
@@ -427,7 +403,6 @@ int parse_words(char *word_arr[], int word_arr_len){
   //else {printf("There are commands:\n"); print_arr(word_arr, word_arr_len);}
   //exit(0);
   
-
   // execute command list  
   execute_commands(word_arr, word_arr_len, run_bg, infile, outfile); 
 
@@ -441,7 +416,7 @@ int parse_words(char *word_arr[], int word_arr_len){
 }
 
 //------------------------------------------------------- 
-// 2. WORD SPLITTING  
+// 2. Word Splitting 
 //------------------------------------------------------- 
 int split_words(char *line, ssize_t line_length){
   if (debug == 1) {
@@ -457,7 +432,8 @@ int split_words(char *line, ssize_t line_length){
   char *token = strtok(line, delim);
   while(token) {
     word_arr[n] = strdup(token);// NOTE: free each call to strdup
-    word_arr[n][strcspn(word_arr[n], "\n")] = 0; // remove newline [1]
+    // https://stackoverflow.com/questions/2693776/removing-trailing-newline-character-from-fgets-input
+    word_arr[n][strcspn(word_arr[n], "\n")] = 0; // remove newline 
     // expand word, as applicable
     expand_word(&word_arr[n]); // can asssign char *word = ... to return
     // increment and get next token 
@@ -465,7 +441,6 @@ int split_words(char *line, ssize_t line_length){
     token = strtok(NULL, delim);
   }
   word_arr[n] = NULL; 
-
   // parse the command word array 
   // TODO consider moving this call to main()
   parse_words(word_arr, n+1);
@@ -474,7 +449,7 @@ int split_words(char *line, ssize_t line_length){
 }
 
 //------------------------------------------------------- 
-// 1. MAIN / INPUT  
+// 1. Main / Input
 //------------------------------------------------------- 
 
 int main(){
@@ -490,26 +465,20 @@ int main(){
 	dummy_action.sa_flags = 0;
   // Initially register dummy_action for SIGINT (ctrl-c) (temporarily)
 	sigaction(SIGINT, &dummy_action, NULL);
-
   // default action 
 	default_action.sa_handler = SIG_DFL;
-  // // Block all catchable signals while dummy_function is running ?
+  // Block all catchable signals while dummy_function is running ?
 	// sigfillset(&dummy_action.sa_mask); 
-
-
   // ignore_action 
 	ignore_action.sa_handler = SIG_IGN;
 	// Register as handler for SIGTSTP (ctrl-z) (permanently)
 	sigaction(SIGTSTP, &ignore_action, NULL);
 
-
   // For getting input from getline()
   char *line = NULL;
   size_t n = 0;
-  
   pid_t pid = getpid();
   pid_t gpid = getpgrp(); 
-  //if (debug == 1) printf("smallsh PID: (%jd)\n", (intmax_t) pid);
   
   // Main loop
   for (;;) {   
@@ -518,37 +487,31 @@ int main(){
     pid_t childPid = most_rec_bg_pid; 
     int childStatus;
     
-    // PRE-PROMPT CHECK
-    // Before prompt, check for any un-waited-for background processes in the same process group ID 
+    // PPre-prompt check for any un-waited-for background processes in the same process group ID...
     // as smallsh, and print the following informative message to stderr for each:
     while ((childPid =  waitpid(0, &childStatus, WUNTRACED | WNOHANG)) > 0){
       if (debug == 1) printf("main() pre-prompt while loop: smallsh pid: %jd groupid %jd childPid %jd\n", (intmax_t) pid, (intmax_t) gpid, (intmax_t) childPid);
-
       // error 
       if (childPid == -1){
        fprintf(stderr,"waitpid() failed\n"); 
        exit(1); 
-      }
-            
+      }       
       // If exited: “Child process %d done. Exit status %d.\n”, <pid>, <exit status>
       if(WIFEXITED(childStatus)){
         fprintf(stderr, "Child process %jd done. Exit status %d.\n", (intmax_t) childPid, WEXITSTATUS(childStatus));
       }
-
       // If a child process is stopped, smallsh shall send it the SIGCONT signal and print 
       // the following message to stderr: 
       if(WIFSTOPPED(childStatus)){
         fprintf(stderr, "Child process %jd stopped. Continuing.\n", (intmax_t) childPid); //WSTOPSIG(childStatus));
         kill(childPid, SIGCONT); 
       }
-
       // If signaled: “Child process %d done. Signaled %d.\n”, <pid>, <signal number>
       if(WIFSIGNALED(childStatus)){
         fprintf(stderr, "Child process %jd done. Signaled %d.\n", (intmax_t) childPid, WTERMSIG(childStatus));
       } 
     }
 
-   
     // Prompt input 
     if (debug == 1) printf("\nprint prompt\n");
     // req: print a prompt to stderr by expanding the PS1 
@@ -564,8 +527,7 @@ int main(){
     // req: after prompt, read line from stdin (getline(3) 
     ssize_t line_length = getline(&line, &n, stdin);
 
-
-    // CHECK ALL THIS 
+    // end of input
     if (feof(stdin)){
       if (debug == 1) printf("EOF on stdin\n");
      // req: EOF on stdin interpreted as implied `exit $?`
@@ -573,8 +535,7 @@ int main(){
       exit(last_fg_exit_status);  
     }
 
-
-    // THIS MAY BE TRIGGERED BY SIGNALS 
+    // May be triggered by signals
     if (line_length == -1){
       //free(line);
       fprintf(stderr, "main() getline() failed not EOF\n");
@@ -596,11 +557,9 @@ int main(){
     if (debug == 1) printf("\nback to main() from split_words()\n");
   };
   
-  /* Free buffer */
-  // 230210 - still has one block unfreed at end
+  // Free buffer - 230210 - still has one block unfreed at end
   // I think that the quit needs to free before exiting
   free(line);
-  //printf("EXITING %jd", (intmax_t) pid); 
   exit(EXIT_SUCCESS);
 }
 
